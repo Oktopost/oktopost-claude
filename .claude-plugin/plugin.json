@@ -1,0 +1,16 @@
+{
+  "name": "oktopost-claude",
+  "version": "1.1.0",
+  "description": "B2B social media management powered by Oktopost — publish content, manage campaigns, run employee advocacy, analyze performance, and handle approvals through Claude.",
+  "author": "Oktopost",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Oktopost/oktopost-claude",
+  "repository": "https://github.com/Oktopost/oktopost-claude",
+  "keywords": ["oktopost", "social-media", "b2b", "marketing", "employee-advocacy", "analytics", "social-publishing"],
+  "skills": ["skills/oktopost"],
+  "agents": ["agents/content-strategist.md", "agents/analytics-interpreter.md"],
+  "mcp": {
+    "package": "oktopost-mcp",
+    "env": ["OKTOPOST_ACCOUNT_REGION", "OKTOPOST_ACCOUNT_ID", "OKTOPOST_API_KEY"]
+  }
+}

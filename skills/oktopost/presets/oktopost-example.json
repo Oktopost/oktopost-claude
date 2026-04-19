@@ -1,0 +1,46 @@
+{
+  "_README": "EXAMPLE PRESET — Copy this file to ~/.oktopost/presets/your-brand.json and customize ALL values below. This preset ships as a reference only. See https://github.com/Oktopost/oktopost-claude#brand-presets for docs.",
+  "name": "oktopost-example",
+  "brand": "Oktopost",
+  "account": {
+    "_note": "Set 'timezone' to an IANA name (e.g., America/New_York, Europe/London, UTC) -- this is what scheduling will assume. The Oktopost API does not expose account timezone, so this preset field is the source of truth. account_id / region are optional; fill them in to enable multi-account switching.",
+    "account_id": "",
+    "region": "us",
+    "timezone": ""
+  },
+  "voice": {
+    "tone": "Professional yet approachable. Expert without being jargon-heavy. Confident but never arrogant.",
+    "personality": "Thought leader in B2B social media. Data-driven. Practical. Focused on measurable outcomes.",
+    "avoid": ["buzzwords without substance", "overly casual slang", "clickbait", "emoji overuse", "engagement bait"],
+    "examples": {
+      "good": "Employee advocacy programs generate 8x more engagement than brand channels alone. Here's what that looks like in practice.",
+      "bad": "OMG you NEED to try employee advocacy!! It's a total game-changer!!!"
+    }
+  },
+  "hashtags": {
+    "always": [],
+    "sometimes": ["#B2BSocial", "#SocialMediaMarketing", "#EmployeeAdvocacy"],
+    "never": ["#FollowForFollow", "#Like4Like", "#Instagood"]
+  },
+  "content_pillars": [
+    "B2B social media strategy",
+    "Employee advocacy and social selling",
+    "Social media analytics and ROI",
+    "Social media compliance and governance",
+    "Content distribution and amplification"
+  ],
+  "target_audience": {
+    "primary": "VP/Director of Marketing at B2B companies (200-5000 employees)",
+    "secondary": "Social media managers, demand gen leads, marketing ops professionals"
+  },
+  "_networks_note": "REQUIRED: each network listed below must have at least one profile ID. Run /oktopost setup (or call list_social_profiles) to populate these. Networks with empty 'profiles' arrays will be dropped at runtime — posts cannot publish with no target profile.",
+  "networks": {
+    "linkedin": { "priority": "high", "profiles": ["REPLACE_WITH_PROFILE_ID"] },
+    "x":        { "priority": "medium", "profiles": ["REPLACE_WITH_PROFILE_ID"] },
+    "facebook": { "priority": "low", "profiles": ["REPLACE_WITH_PROFILE_ID"] },
+    "instagram":{ "priority": "low", "profiles": ["REPLACE_WITH_PROFILE_ID"] }
+  },
+  "_approval_note": "Set approval_required to true ONLY if your team requires every post to route through an Oktopost approval workflow before publishing. Leaving it false means posts schedule directly. The skill will still honor any account- or campaign-level approval rules configured inside Oktopost itself -- this flag only controls the skill's extra gate.",
+  "approval_required": false,
+  "_utm_note": "UTMs are NOT configured here. Oktopost auto-appends UTMs to every okt.to shortened link at publish time -- configure them once inside the Oktopost product (Settings > Tracking). Adding UTMs manually in content produces double-UTMs and breaks attribution."
+}
