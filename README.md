@@ -23,16 +23,15 @@
 
 # oktopost-claude
 
-**Your AI-powered B2B social media command center -- powered by Oktopost + Claude.**
+**Your AI-powered B2B social media command center, powered by Oktopost + Claude.**
 
 Turn Claude into a B2B social media strategist that orchestrates Oktopost's ~40 MCP tools with domain expertise, guardrails, and analytics interpretation.
 
-- **Strategist** -- Claude doesn't just execute, it advises on B2B social best practices
-- **Orchestrator** -- multi-step workflows (campaign, messages, posts, approval, advocacy) in a single command
-- **Analyst** -- interprets performance data with B2B benchmarks, not just raw numbers
+- **Strategist**: Claude doesn't just execute, it advises on B2B social best practices
+- **Orchestrator**: multi-step workflows (campaign, messages, posts, approval, advocacy) in a single command
+- **Analyst**: interprets performance data with B2B benchmarks, not just raw numbers
 
-<!-- TODO: Replace with demo.gif once recorded with VHS (see screenshots/demo.tape) -->
-<!-- ![Demo](screenshots/demo.gif) -->
+![Demo](demo/demo.gif)
 
 ```mermaid
 flowchart LR
@@ -66,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/Oktopost/oktopost-claude/main/insta
 
 ## Installation
 
-### Manual (works today)
+### Manual
 
 ```bash
 git clone https://github.com/Oktopost/oktopost-claude.git
@@ -80,39 +79,18 @@ A one-liner curl is also supported:
 curl -fsSL https://raw.githubusercontent.com/Oktopost/oktopost-claude/main/install.sh | sh
 ```
 
-### Plugin marketplace (when listed)
-
-Once this plugin is published to the Claude Code plugin marketplace, you'll be able to run:
-
-```bash
-/plugin marketplace add Oktopost/oktopost-claude
-/plugin install oktopost-claude@oktopost-claude
-```
-
-If the marketplace commands aren't available in your Claude Code version, use the manual install above.
-
-### Skills CLI (when available)
-
-If an `npx skills` CLI is installed on your system:
-
-```bash
-npx skills add Oktopost/oktopost-claude@oktopost
-```
-
-Otherwise, stick with the manual install.
-
 ---
 
 ## Setup
 
-Run `/oktopost setup` inside Claude Code. The skill handles everything conversationally — no terminal, no shell commands, no pasting.
+Run `/oktopost setup` inside Claude Code. The skill handles everything conversationally. No terminal, no shell commands, no pasting.
 
 Claude asks you for:
 1. Your API key (find it at https://app.oktopost.com/my-profile/api)
 2. Your numeric account ID (same page)
 3. Your region (US or EU)
 
-Claude validates the credentials against the Oktopost API, then registers the MCP server for you. Claude Code usually hot-loads the new MCP tools within a few seconds — if they don't appear, restart once and run `/oktopost` again.
+Claude validates the credentials against the Oktopost API, then registers the MCP server for you. Claude Code usually hot-loads the new MCP tools within a few seconds. If they don't appear, restart once and run `/oktopost` again.
 
 ### For advanced users / CI
 
@@ -173,7 +151,7 @@ Most customers should just use `/oktopost setup` for configuration.
 ### Publish a thought leadership post
 
 ```
-/oktopost publish "The best employee advocacy programs don't start with tools — they start with culture. Here's a framework we've seen work at 200+ B2B companies."
+/oktopost publish "The best employee advocacy programs don't start with tools. They start with culture. Here's a framework we've seen work at 200+ B2B companies."
 ```
 
 Claude adapts the content for LinkedIn (full post) and X (condensed with thread option), schedules for Tuesday 9am ET, and routes through approval.
@@ -214,9 +192,9 @@ Claude shows all pending items with previews, lets you approve or reject with no
 
 ## Brand presets
 
-The skill ships with `oktopost-example.json` as a **reference template**. It is NOT auto-installed into your active presets directory -- if it were, its `REPLACE_WITH_PROFILE_ID` placeholders would block publishing until you edited them.
+The skill ships with `oktopost-example.json` as a **reference template**. It is NOT auto-installed into your active presets directory. If it were, its `REPLACE_WITH_PROFILE_ID` placeholders would block publishing until you edited them.
 
-**Easiest path:** run `/oktopost setup` — it bootstraps a real preset from your connected profiles automatically.
+**Easiest path:** run `/oktopost setup`. It bootstraps a real preset from your connected profiles automatically.
 
 **Manual path:**
 
@@ -224,7 +202,7 @@ The skill ships with `oktopost-example.json` as a **reference template**. It is 
    ```bash
    cp ~/.claude/skills/oktopost/presets/oktopost-example.json ~/.oktopost/presets/your-brand.json
    ```
-2. Edit `your-brand.json` — replace `REPLACE_WITH_PROFILE_ID` values with the profile IDs from `/oktopost preset show` or `list_social_profiles`.
+2. Edit `your-brand.json`: replace `REPLACE_WITH_PROFILE_ID` values with the profile IDs from `/oktopost preset show` or `list_social_profiles`.
 
 **What presets define:**
 
@@ -236,7 +214,7 @@ The skill ships with `oktopost-example.json` as a **reference template**. It is 
 - Approval settings
 - Optional account credentials for multi-account setups
 
-UTMs are NOT preset-managed — Oktopost auto-appends them to every okt.to link at publish time based on the account's tracking config.
+UTMs are NOT preset-managed. Oktopost auto-appends them to every okt.to link at publish time based on the account's tracking config.
 
 **Preset hierarchy:**
 
@@ -266,7 +244,7 @@ oktopost-claude/
 │   │   ├── publish.py             # Direct API fallback for publishing
 │   │   └── report.py              # Direct API fallback for analytics
 │   └── presets/
-│       └── oktopost-example.json  # Example brand preset (customize me!)
+│       └── oktopost-example.json  # Reference brand preset template
 ├── agents/
 │   ├── content-strategist.md      # Subagent for content ideation
 │   └── analytics-interpreter.md   # Subagent for metrics analysis
@@ -274,7 +252,7 @@ oktopost-claude/
 └── .claude-plugin/plugin.json     # Marketplace manifest
 ```
 
-The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) npm package -- Oktopost's first-party MCP server. The MCP provides ~40 raw tools; the skill adds B2B expertise, multi-step orchestration, guardrails, and analytics interpretation on top.
+The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) npm package, Oktopost's first-party MCP server. The MCP provides ~40 raw tools; the skill adds B2B expertise, multi-step orchestration, guardrails, and analytics interpretation on top.
 
 ---
 
@@ -290,7 +268,7 @@ The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) n
 ## FAQ
 
 **What networks are supported?**
-LinkedIn, X/Twitter, Facebook, and Instagram -- the same networks Oktopost supports.
+LinkedIn, X/Twitter, Facebook, and Instagram. The same networks Oktopost supports.
 
 **Do I need the MCP server?**
 Recommended for full functionality. Without it, the skill falls back to direct API calls via Python scripts.
