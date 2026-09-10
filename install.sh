@@ -17,11 +17,13 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_SRC="${REPO_DIR}/skills/${SKILL_NAME}"
 PRESET_SRC="${REPO_DIR}/skills/${SKILL_NAME}/presets/oktopost-example.json"
 
+AGENTS_SRC="${REPO_DIR}/agents"
+AGENT_FILES="content-strategist.md analytics-interpreter.md"
+
 SKILL_DEST="${HOME}/.claude/skills/${SKILL_NAME}"
+AGENTS_DEST="${HOME}/.claude/agents"
 PRESET_DIR="${HOME}/.oktopost/presets"
 PRESET_DEST="${PRESET_DIR}/oktopost-example.json"
-
-MCP_CONFIG="${HOME}/.claude/settings.json"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -68,7 +70,27 @@ do_install() {
     rm -rf "${SKILL_DEST}"
   fi
   cp -R "${SKILL_SRC}" "${SKILL_DEST}"
+  # Drop any bytecode the source checkout picked up -- it is gitignored, so it
+  # only exists when installing from a checkout that has already run the scripts.
+  find "${SKILL_DEST}" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
   ok "Skill installed."
+
+  # 1b. Copy subagents. The skill delegates to oktopost-content-strategist and
+  #     oktopost-analytics-interpreter, so they must land alongside it or those
+  #     delegations fail at runtime. Copied file-by-file -- ~/.claude/agents/ is
+  #     shared with the user's own agents and must never be replaced wholesale.
+  info "Installing subagents to ${AGENTS_DEST} ..."
+  if [ ! -d "${AGENTS_SRC}" ]; then
+    err "Agents source not found at ${AGENTS_SRC}. Are you running this from the repo root?"
+  fi
+  mkdir -p "${AGENTS_DEST}"
+  for agent_file in ${AGENT_FILES}; do
+    if [ ! -f "${AGENTS_SRC}/${agent_file}" ]; then
+      err "Missing agent file: ${AGENTS_SRC}/${agent_file}"
+    fi
+    cp "${AGENTS_SRC}/${agent_file}" "${AGENTS_DEST}/${agent_file}"
+  done
+  ok "Subagents installed."
 
   # 2. Create presets directory (empty — we do NOT auto-copy the example,
   #    which contains REPLACE_WITH_PROFILE_ID placeholders that would block
@@ -161,6 +183,14 @@ do_uninstall() {
   else
     warn "Skill directory not found at ${SKILL_DEST} — nothing to remove."
   fi
+
+  for agent_file in ${AGENT_FILES}; do
+    if [ -f "${AGENTS_DEST}/${agent_file}" ]; then
+      rm -f "${AGENTS_DEST}/${agent_file}"
+      ok "Removed ${AGENTS_DEST}/${agent_file}"
+    fi
+  done
+  # Leave ${AGENTS_DEST} itself alone -- it is shared with the user's own agents.
 
   # Remove empty dirs (but not user presets)
   if [ -d "${PRESET_DIR}" ] && [ -z "$(ls -A "${PRESET_DIR}" 2>/dev/null)" ]; then

@@ -25,7 +25,7 @@
 
 **Your AI-powered B2B social media command center, powered by Oktopost + Claude.**
 
-Turn Claude into a B2B social media strategist that orchestrates Oktopost's ~40 MCP tools with domain expertise, guardrails, and analytics interpretation.
+Turn Claude into a B2B social media strategist that orchestrates Oktopost's 85 MCP tools with domain expertise, guardrails, and analytics interpretation.
 
 - **Strategist**: Claude doesn't just execute, it advises on B2B social best practices
 - **Orchestrator**: multi-step workflows (campaign, messages, posts, approval, advocacy) in a single command
@@ -51,8 +51,9 @@ flowchart LR
 ## Quick start
 
 ```bash
-# Install
-curl -fsSL https://raw.githubusercontent.com/Oktopost/oktopost-claude/main/install.sh | sh
+# Install (inside Claude Code)
+/plugin marketplace add Oktopost/oktopost-claude
+/plugin install oktopost-claude@oktopost
 
 # Connect your Oktopost account
 /oktopost setup
@@ -65,7 +66,29 @@ curl -fsSL https://raw.githubusercontent.com/Oktopost/oktopost-claude/main/insta
 
 ## Installation
 
-### Manual
+### As a Claude Code plugin (recommended)
+
+```
+/plugin marketplace add Oktopost/oktopost-claude
+/plugin install oktopost-claude@oktopost
+```
+
+This installs the skill, both subagents, and the `oktopost` MCP server together.
+The bundled MCP server reads its credentials from your environment:
+
+```bash
+export OKTOPOST_API_KEY=<api-key>
+export OKTOPOST_ACCOUNT_ID=<account-id>
+export OKTOPOST_ACCOUNT_REGION=us   # or eu; defaults to us
+```
+
+If you'd rather not export them, skip that step and run `/oktopost setup` —
+it registers a credentialed MCP server for you and takes precedence.
+
+### Standalone script
+
+For installs outside the plugin system (no marketplace, skill copied straight
+into `~/.claude/`):
 
 ```bash
 git clone https://github.com/Oktopost/oktopost-claude.git
@@ -78,6 +101,10 @@ A one-liner curl is also supported:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Oktopost/oktopost-claude/main/install.sh | sh
 ```
+
+This copies the skill to `~/.claude/skills/oktopost/` and both subagents to
+`~/.claude/agents/`. It does not register the MCP server — run `/oktopost setup`
+or use `--with-mcp` below for that.
 
 ---
 
@@ -122,7 +149,7 @@ claude mcp add oktopost \
 sh install.sh --uninstall
 ```
 
-Removes the skill from `~/.claude/skills/oktopost/`, the registered MCP server, and the example preset. Your own presets in `~/.oktopost/presets/` are preserved.
+Removes the skill from `~/.claude/skills/oktopost/`, both subagents from `~/.claude/agents/`, and the registered MCP server. Your own presets in `~/.oktopost/presets/` are preserved.
 
 Most customers should just use `/oktopost setup` for configuration.
 
@@ -249,10 +276,13 @@ oktopost-claude/
 │   ├── content-strategist.md      # Subagent for content ideation
 │   └── analytics-interpreter.md   # Subagent for metrics analysis
 ├── install.sh                     # Standalone installer
-└── .claude-plugin/plugin.json     # Marketplace manifest
+├── .mcp.json                      # Bundled oktopost MCP server definition
+└── .claude-plugin/
+    ├── plugin.json                # Plugin manifest
+    └── marketplace.json           # Marketplace manifest
 ```
 
-The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) npm package, Oktopost's first-party MCP server. The MCP provides ~40 raw tools; the skill adds B2B expertise, multi-step orchestration, guardrails, and analytics interpretation on top.
+The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) npm package, Oktopost's first-party MCP server. The MCP provides 85 raw tools; the skill adds B2B expertise, multi-step orchestration, guardrails, and analytics interpretation on top.
 
 ---
 

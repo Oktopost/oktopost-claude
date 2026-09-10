@@ -1,18 +1,31 @@
 {
-  "name": "oktopost-claude",
-  "display_name": "Oktopost — B2B Social Media for Claude",
-  "description": "AI-powered B2B social media management. Publish content, run campaigns, manage employee advocacy, analyze performance, and handle approvals — all through Claude.",
-  "author": "Oktopost",
-  "version": "1.1.0",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/Oktopost/oktopost-claude",
-  "categories": ["marketing", "social-media", "analytics", "productivity"],
-  "tags": ["oktopost", "b2b", "social-media", "employee-advocacy", "content-publishing", "analytics"],
-  "icon": "screenshots/icon.png",
-  "skills": ["skills/oktopost"],
-  "agents": ["agents/content-strategist.md", "agents/analytics-interpreter.md"],
-  "requirements": {
-    "mcp": "oktopost-mcp",
-    "node": ">=20.0.0"
-  }
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "oktopost",
+  "description": "Oktopost plugins for Claude Code — B2B social media management, publishing, advocacy, and analytics.",
+  "owner": {
+    "name": "Oktopost",
+    "url": "https://www.oktopost.com"
+  },
+  "plugins": [
+    {
+      "name": "oktopost-claude",
+      "description": "AI-powered B2B social media management. Publish content, run campaigns, manage employee advocacy, analyze performance, and handle approvals — all through Claude.",
+      "author": {
+        "name": "Oktopost",
+        "url": "https://www.oktopost.com"
+      },
+      "category": "marketing",
+      "keywords": [
+        "oktopost",
+        "b2b",
+        "social-media",
+        "employee-advocacy",
+        "content-publishing",
+        "analytics"
+      ],
+      "source": "./",
+      "homepage": "https://github.com/Oktopost/oktopost-claude",
+      "license": "Apache-2.0"
+    }
+  ]
 }
