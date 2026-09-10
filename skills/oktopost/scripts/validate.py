@@ -88,10 +88,10 @@ def main():
         print(f"\nWARNING: Could not fetch profiles: {e}")
         sys.exit(0)
 
-    items = profiles if isinstance(profiles, list) else profiles.get("items", profiles.get("data", []))
+    items = profiles if isinstance(profiles, list) else profiles.get("Items", profiles.get("items", []))
     by_network = {}
     for p in items:
-        net = p.get("network", p.get("type", "unknown"))
+        net = p.get("Network", p.get("network", "unknown"))
         by_network.setdefault(net, []).append(p)
 
     print(f"Profiles: {len(items)} total")

@@ -74,7 +74,11 @@ def canonical_network(name):
 
 
 def _items(payload):
-    return payload if isinstance(payload, list) else payload.get("items", payload.get("data", []))
+    # The REST API returns {"Result": true, "Items": [...], "Total": n}.
+    # Lowercase variants are kept as a defensive fallback only.
+    if isinstance(payload, list):
+        return payload
+    return payload.get("Items", payload.get("items", payload.get("data", [])))
 
 
 def _field(obj, *names):

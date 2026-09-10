@@ -68,59 +68,79 @@ def print_table(headers, rows, col_widths=None):
         print("  ".join(str(row[i]).ljust(col_widths[i]) for i in range(len(headers))))
 
 
+def _items(payload):
+    # The REST API returns {"Result": true, "Items": [...], "Total": n}.
+    if isinstance(payload, list):
+        return payload
+    return payload.get("Items", payload.get("items", []))
+
+
+def _int(obj, key):
+    v = obj.get(key, 0)
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 0
+
+
 def campaign_report(base_url, account_id, api_key, campaign_id):
-    campaign = api_call(base_url, f"/v2/campaign/{campaign_id}", account_id, api_key)
-    print(f"Campaign: {campaign.get('name', 'N/A')} (ID: {campaign_id})")
-    print(f"Status:   {campaign.get('status', 'N/A')}\n")
+    # GET /v2/campaign/{id} returns {"Result": true, "Campaign": {...}}
+    resp = api_call(base_url, f"/v2/campaign/{campaign_id}", account_id, api_key)
+    campaign = resp.get("Campaign", resp) if isinstance(resp, dict) else {}
+    print(f"Campaign: {campaign.get('Name', 'N/A')} (ID: {campaign_id})")
+    print(f"Status:   {campaign.get('Status', 'N/A')}\n")
 
     posts = api_call(base_url, f"/v2/post?campaignId={campaign_id}&_count=100", account_id, api_key)
-    items = posts if isinstance(posts, list) else posts.get("items", posts.get("data", []))
+    items = _items(posts)
 
     if not items:
         print("No posts found for this campaign.")
         return
 
-    totals = {"clicks": 0, "conversions": 0, "likes": 0, "comments": 0, "impressions": 0, "posts": len(items)}
+    # Engagement counters live flat on the post object, not in a nested stats
+    # dict, and the API exposes no impressions field -- so there is no
+    # impression-based engagement rate to compute here.
+    totals = {"clicks": 0, "conversions": 0, "likes": 0, "comments": 0, "posts": len(items)}
     rows = []
     for p in items:
-        stats = p.get("stats", p.get("statistics", {}))
-        clicks = stats.get("clicks", 0)
-        convs = stats.get("conversions", 0)
-        likes = stats.get("likes", stats.get("reactions", 0))
-        comments = stats.get("comments", stats.get("replies", 0))
-        impressions = stats.get("impressions", 0)
-        network = p.get("network", p.get("type", "?"))
-        content = p.get("content", p.get("text", ""))[:40]
-        eng_rate = f"{((likes + comments + clicks) / impressions * 100):.1f}%" if impressions > 0 else "N/A"
+        clicks = _int(p, "Clicks")
+        convs = _int(p, "Converts")
+        likes = _int(p, "Likes")
+        comments = _int(p, "Comments")
+        network = p.get("Network", "?")
+        status = p.get("Status", "?")
+        when = str(p.get("StartDateTime", ""))[:16]
 
-        rows.append([network, content, fmt_num(clicks), fmt_num(convs), fmt_num(likes), fmt_num(comments), eng_rate])
+        rows.append([network, status, when, fmt_num(clicks), fmt_num(convs), fmt_num(likes), fmt_num(comments)])
         totals["clicks"] += clicks
         totals["conversions"] += convs
         totals["likes"] += likes
         totals["comments"] += comments
-        totals["impressions"] += impressions
 
-    headers = ["Network", "Content", "Clicks", "Convs", "Likes", "Comments", "Eng%"]
-    print_table(headers, rows, [10, 42, 8, 8, 8, 10, 8])
+    headers = ["Network", "Status", "Scheduled", "Clicks", "Convs", "Likes", "Comments"]
+    print_table(headers, rows, [10, 12, 18, 8, 8, 8, 10])
 
-    total_eng = totals["clicks"] + totals["likes"] + totals["comments"]
-    total_eng_rate = f"{(total_eng / totals['impressions'] * 100):.1f}%" if totals["impressions"] > 0 else "N/A"
     print(f"\nTotals: {totals['posts']} posts | {fmt_num(totals['clicks'])} clicks | "
           f"{fmt_num(totals['conversions'])} conversions | {fmt_num(totals['likes'])} likes | "
-          f"{fmt_num(totals['comments'])} comments | Engagement: {total_eng_rate}")
+          f"{fmt_num(totals['comments'])} comments")
+    print("Note: the REST API returns no impressions field, so engagement rate is not computed here.")
 
 
 def list_campaigns(base_url, account_id, api_key, days):
     campaigns = api_call(base_url, "/v2/campaign?_count=50", account_id, api_key)
-    items = campaigns if isinstance(campaigns, list) else campaigns.get("items", campaigns.get("data", []))
+    items = _items(campaigns)
 
     cutoff = int(time.time()) - (days * 86400)
     filtered = []
     for c in items:
-        created = c.get("createdAt", c.get("created_at", 0))
-        if isinstance(created, str):
-            filtered.append(c)  # can't filter string dates, include them
-        elif created >= cutoff or cutoff == 0:
+        # Created comes back as "YYYY-MM-DD HH:MM:SS", not an epoch.
+        created = c.get("Created", "")
+        try:
+            ts = int(time.mktime(time.strptime(str(created)[:19], "%Y-%m-%d %H:%M:%S")))
+        except (ValueError, TypeError):
+            filtered.append(c)  # unparseable date -- don't silently drop it
+            continue
+        if ts >= cutoff:
             filtered.append(c)
 
     if not filtered:
@@ -130,14 +150,14 @@ def list_campaigns(base_url, account_id, api_key, days):
     print(f"Recent campaigns (last {days} days):\n")
     rows = []
     for c in filtered[:25]:
-        cid = c.get("id", "?")
-        name = c.get("name", "N/A")[:35]
-        status = c.get("status", "?")
-        post_count = c.get("postCount", c.get("post_count", "?"))
+        cid = c.get("Id", "?")
+        name = str(c.get("Name", "N/A"))[:35]
+        status = c.get("Status", "?")
+        post_count = c.get("TotalPosts", "?")
         rows.append([str(cid), name, status, str(post_count)])
 
     headers = ["ID", "Name", "Status", "Posts"]
-    print_table(headers, rows, [10, 37, 10, 8])
+    print_table(headers, rows, [17, 37, 10, 8])
     print(f"\nRun with --campaign <ID> for detailed stats.")
 
 

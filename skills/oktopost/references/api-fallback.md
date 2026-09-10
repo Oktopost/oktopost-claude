@@ -19,6 +19,13 @@ Authorization: Basic <base64(AccountId:ApiKey)>
 
 Find credentials at https://app.oktopost.com/my-profile/api (log in first). The AccountId is the numeric account identifier, and the ApiKey is the generated token.
 
+## Response envelopes
+
+Every response carries a boolean `Result`. Collection endpoints return `Items`;
+single-resource endpoints return a named key (`/v2/post/{id}` returns `Post`,
+`/v2/postlog` returns `Postlogs`, `/v2/me` returns `User` and `Account`). Errors
+return `Result: false` plus an `Errors` object keyed by failure type.
+
 ## Key Endpoints
 
 ### Account Verification
@@ -51,7 +58,7 @@ Create body:
 ### Messages
 
 ```
-GET  /v2/message?campaignId=12345
+GET  /v2/message?campaignId=002rfet4s6n361h
 POST /v2/message
 ```
 
@@ -60,7 +67,7 @@ Messages are the content templates attached to campaigns.
 ### Posts
 
 ```
-GET  /v2/post?campaignId=12345
+GET  /v2/post?campaignId=002rfet4s6n361h
 POST /v2/post
 GET  /v2/post/{id}?withStats=1
 ```
@@ -68,23 +75,35 @@ GET  /v2/post/{id}?withStats=1
 Create body:
 ```json
 {
-  "CampaignId": 12345,
-  "MessageId": 67890,
-  "Credentials": ["profile-id-1"],
+  "CampaignId": "002rfet4s6n361h",
+  "MessageId": "005k2p9wq4xd118",
+  "Credentials": ["003-a1b2c3d4e5f6g7h"],
   "Network": "LinkedIn",
   "StartDateTime": 1718841600
 }
 ```
 
-**MCP mapping:** The `create_post` MCP tool accepts `messageId`, `profileId`, `network`, `scheduledAt` (camelCase). The MCP server flattens those to the PascalCase REST payload above — `profileId` becomes `Credentials: [profileId]`, `scheduledAt` becomes `StartDateTime`. Prefer the MCP tool unless you are in fallback mode.
+**IDs are 15-character strings, not integers.** Campaigns start `002`, posts `004`,
+messages `005`, social profiles `003-`. Passing a numeric ID fails with
+`Failed to parse id` (posts) or ``` `campaignId` must be between 15 and 15
+characters long ``` (messages).
+
+**MCP mapping:** The `create_post` MCP tool accepts `messageId`, `credentialIds`, `startDateTime` (camelCase). The MCP server maps those onto the PascalCase REST payload above — `credentialIds` is a comma-separated string that becomes the `Credentials` array, and `startDateTime` becomes `StartDateTime`. Note there is no `network` argument on `create_post`; the network comes from the message. Prefer the MCP tool unless you are in fallback mode.
 
 ### Published Posts (Post Log)
 
 ```
-GET /v2/postlog?withStats=1&_page=0&_count=50
+GET /v2/postlog?postId={postId}&withStats=1
 ```
 
-Returns published posts with engagement statistics. Use for reporting and analytics.
+Returns the published instances of **one** post, with engagement statistics when
+`withStats=1` is set. `postId` is required -- this is not a list-everything endpoint,
+and calling it without one returns
+`{"Result":false,"Errors":{"Param":{"get":"Missing value for parameter postId"}}}`.
+It does not paginate. To sweep an account, iterate campaigns via `/v2/campaign`,
+then posts via `/v2/post?campaignId={id}`, then postlogs per post.
+
+The response envelope is `Postlogs`, not `Items`.
 
 ### Social Profiles
 
