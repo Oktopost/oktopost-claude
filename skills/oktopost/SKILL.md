@@ -10,7 +10,7 @@ description: >
   and all /oktopost commands.
 argument-hint: "[help|publish|campaign|analytics|advocacy|inbox|calendar|approve|dashboard|preset|setup] <details> [--yes] [--key <k> --account <id> --region <us|eu>]"
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   author: Oktopost
   mcp-package: "oktopost-mcp"
 ---
@@ -140,11 +140,13 @@ Analyze content type (thought leadership, product update, event, engagement). Ap
 LinkedIn document/carousel posts are the highest-performing B2B format; skipping media is leaving reach on the table. The MCP flow:
 
 1. **Image or GIF** -- Call `create_media` with the public URL (or `create_upload` → get signed URL → upload bytes → reference the upload). Returns a media ID.
-2. **Video** -- Call `create_upload` with filename + contentType, upload the bytes to the returned signed URL, then call `validate_video_upload` with the upload ID. If validation fails, show the specific rule violation from `references/social-networks.md` and ask for a re-encoded file.
-3. **LinkedIn document/carousel (PDF)** -- Same `create_upload` flow; content type `application/pdf`. Validate slide dimensions against LinkedIn's 1080×1080 or 1920×1080 spec per `references/social-networks.md` before upload.
-4. **Attach to the message** -- Pass the media ID array in `create_message({ assets: [...] })`.
+2. **Video** -- Call `create_upload` with `source` (a public URL that supports HEAD and ranged GET), plus optional `name` and `mimeType`. Then call `validate_video_upload` with the returned **media** ID (`mediaId`, not the upload ID). If validation fails, show the specific rule violation from `references/social-networks.md` and ask for a re-encoded file.
+3. **LinkedIn document/carousel (PDF)** -- Same `create_upload` flow; `mimeType: application/pdf`. Validate slide dimensions against LinkedIn's 1080×1080 or 1920×1080 spec per `references/social-networks.md` before upload.
+4. **Attach to the message** -- Pass a single media ID as `create_message({ media: "<mediaId>" })`. `media` takes one ID, not an array -- for several assets on one story use `create_board_story({ mediaIds: "id1,id2" })`, which takes a comma-separated string.
 
 Validation: always check media specs (size, format, duration, aspect ratio) against `references/social-networks.md` BEFORE calling `create_upload`. Rejecting a file client-side is cheaper than a failed upload round-trip.
+
+**LinkedIn audience targeting.** For LinkedIn posts, check `list_targeting_presets(credentialId)` before scheduling. If the account has presets defined, name them and ask whether to apply one -- pass the chosen ID as `targetingPresetId` on `create_post`. Targeting narrows reach deliberately, so never apply a preset the user didn't pick. Non-LinkedIn profiles ignore the parameter.
 
 **Approval workflow discovery:**
 
@@ -163,7 +165,7 @@ If the user says "wait, cancel that" or "undo" immediately after a publish confi
 
 A post can schedule successfully in Oktopost but still fail at publish time -- the source network may reject it (LinkedIn spam flag, X rate limit, Facebook policy rejection). In the Report + Suggest section (§8), include this as a next-step when the scheduled time is >30 minutes away:
 
-> *"After {scheduled_time}, run `/oktopost analytics post {id}` or `get_post` with `withStats` to confirm the network accepted it. Published posts show a `status` of `Published`; rejected posts show `Failed` with the network's reason."*
+> *"After {scheduled_time}, run `/oktopost analytics post {id}` or `get_post` with `stats` to confirm the network accepted it. Published posts show a `status` of `Published`; rejected posts show `Failed` with the network's reason."*
 
 For posts scheduled very close to now (<30 min), skip the suggestion -- the user will see the outcome organically.
 
@@ -191,7 +193,7 @@ Agent tool call:
     hook, CTA, advocacy-friendly flag).
 ```
 
-**MCP tools:** `list_social_profiles`, `create_message`, `create_post`, `update_post`, `delete_post`, `send_to_workflow`, `list_workflows`, `create_media`, `create_upload`, `validate_video_upload`
+**MCP tools:** `list_social_profiles`, `create_message`, `create_post`, `update_post`, `delete_post`, `send_to_workflow`, `list_workflows`, `create_media`, `create_upload`, `validate_video_upload`, `list_tags`, `list_targeting_presets`
 
 ### Campaign Mode
 
@@ -203,13 +205,13 @@ Orchestrate the full sequence: create campaign, generate message variants per ne
 
 Do not create a campaign without at least one message variant.
 
-**Media attachments.** Same flow as Publishing Mode -- resolve all media IDs via `create_media` / `create_upload` BEFORE creating messages so you can reference them in `create_message({ assets: [...] })`. Validate specs client-side per `references/social-networks.md`.
+**Media attachments.** Same flow as Publishing Mode -- resolve all media IDs via `create_media` / `create_upload` BEFORE creating messages so you can reference them in `create_message({ media: "<mediaId>" })`. Validate specs client-side per `references/social-networks.md`.
 
 **Approval workflow discovery.** Before the first `send_to_workflow` call of the campaign, follow the same `list_workflows` → pick-or-ask pattern described in Publishing Mode. Re-use the selected workflow for every post in the campaign; don't re-ask per post.
 
 **Rate-limit guardrail.** Oktopost caps at 60 requests/minute. A typical campaign (1 campaign + 5 messages + 5 posts × 3 networks + advocacy board story = ~22 calls) is well under the limit. But if the campaign generates >20 `create_post` calls in a burst, pause 2 seconds between every 10 calls to stay clear of the per-minute cap. On any 429, apply the backoff in §7 without failing the whole campaign -- resume where you left off.
 
-**MCP tools:** `create_campaign`, `create_message`, `create_post`, `create_board_story`, `send_to_workflow`, `list_workflows`, `create_media`, `create_upload`, `validate_video_upload`
+**MCP tools:** `create_campaign`, `create_message`, `create_post`, `create_board_story`, `send_to_workflow`, `list_workflows`, `create_media`, `create_upload`, `validate_video_upload`, `list_tags`, `list_media_folders`, `create_media_folder`
 
 ### Analytics Mode
 
@@ -244,7 +246,7 @@ Agent tool call:
 
 Pass tool output verbatim in `{paste raw tool output here}`. Do NOT pre-summarize -- that defeats the delegation.
 
-**MCP tools:** `get_social_post` (with `withStats`), `list_social_posts`, `get_post_analytics`, `list_dashboards`, `get_dashboard`, `get_dashboard_report_data`
+**MCP tools:** `get_social_post` (with `stats`), `list_social_posts`, `get_post_analytics`, `list_dashboards`, `get_dashboard`, `get_dashboard_report_data`
 
 ### Advocacy Mode
 
@@ -270,9 +272,11 @@ Do not auto-reply without user review. Do not ignore negative sentiment -- flag 
 
 **Triggers:** "calendar", "schedule", "upcoming", "what's planned"
 
-Pull scheduled posts for the requested timeframe via `get_calendar`. Display organized by day with network icons. Identify posting cadence gaps -- highlight days with zero posts or networks with no coverage. Suggest content types to fill gaps based on the campaign context.
+Pull scheduled posts for the requested timeframe via `get_calendar` (`fromDate` / `toDate`, epoch seconds -- note the names, they are not `startDate`/`endDate`). Display organized by day with network icons. Identify posting cadence gaps -- highlight days with zero posts or networks with no coverage. Suggest content types to fill gaps based on the campaign context.
 
-**MCP tools:** `get_calendar`, `list_social_posts`
+**Custom calendar events.** The calendar also holds non-post entries -- milestones, launches, deadlines, meetings. Read them with `list_custom_calendar_events` (filter by `before`/`after` or `campaignIds`) and fold them into the day-by-day display: a launch date is exactly the context that explains a posting gap. When the user asks to put a milestone on the calendar, use `create_custom_calendar_event` (`title` max 80 chars, `startDate` epoch seconds; omit `endDate` for a single-day event). Confirm before writing, as with any create.
+
+**MCP tools:** `get_calendar`, `list_social_posts`, `list_custom_calendar_events`, `get_custom_calendar_event`, `create_custom_calendar_event`, `update_custom_calendar_event`, `delete_custom_calendar_event`
 
 ### Approval Mode
 
@@ -294,7 +298,7 @@ Social BI dashboards are pre-built report pages inside Oktopost. Each dashboard 
 
 1. **Discovery.** Call `list_dashboards`. If the user named a dashboard, match on name (case-insensitive, substring OK). If ambiguous, show the list and ask. If the user said "the dashboard" without a name, show the full list -- don't guess.
 2. **Structure.** Call `get_dashboard(dashboardId)` to see the widget definitions: each widget has an ID, a display name, and a chart type (time series, pie, table, KPI, etc.).
-3. **Data.** For each relevant widget, call `get_dashboard_report_data(dashboardId, widgetId, startDate, endDate)`. Start/end are epoch seconds; default to the last 30 days if the user didn't specify. Call widgets sequentially -- do not batch 10+ widgets in parallel (rate limit).
+3. **Data.** For each relevant widget, call `get_dashboard_report_data(dashboardId, reportId)`, where `reportId` is the widget ID from step 2. There are no date arguments -- narrow the period with the optional `filter` object if the dashboard's widget supports it. Call widgets sequentially -- do not batch 10+ widgets in parallel (rate limit).
 4. **Interpretation.** Raw widget data is a list of rows. Your job is to translate, not dump:
    - **Time-series widgets:** state the trend (up/down/flat), the percentage change vs the prior equivalent period, and any outlier weeks.
    - **KPI widgets:** state the value and compare to the B2B benchmarks in `references/analytics.md`. Flag anything >2σ off the rolling mean.
@@ -456,7 +460,9 @@ Invoke via the Agent tool with the `subagent_type` matching the `name:` field in
 
 **Principle:** `/oktopost setup` runs entirely inside Claude Code. Never ask the user to open a terminal, paste a shell command, or re-run `install.sh` with flags. You (Claude) have the Bash tool -- use it.
 
-**Setup method:** Local API key only. Oktopost does NOT offer hosted OAuth. Do not mention `mcp.oktopost.com`, "Option A vs B", or any browser-based authorize flow. There is one path -- the one below.
+**Setup method:** Local API key. That is the only path for Claude Code, so do not offer "Option A vs B" or a browser-based authorize flow here -- walk the user through the one below.
+
+For context, Oktopost *does* run a hosted MCP endpoint at `mcp.oktopost.com`, and the `oktopost-mcp` package is a thin stdio proxy in front of it. Oktopost's docs describe an OAuth flow for cloud clients (ChatGPT, Claude web) and HTTP Basic for automation platforms (n8n, Make). Neither applies to Claude Code, which uses the local stdio server with API-key environment variables. Mention the hosted endpoint only if the user asks about non-Claude-Code clients.
 
 When the user runs `/oktopost setup`, walk this flow:
 
