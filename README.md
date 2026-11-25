@@ -25,7 +25,7 @@
 
 **Your AI-powered B2B social media command center, powered by Oktopost + Claude.**
 
-Turn Claude into a B2B social media strategist that orchestrates Oktopost's 85 MCP tools with domain expertise, guardrails, and analytics interpretation.
+Turn Claude into a B2B social media strategist that orchestrates Oktopost's 89 MCP tools with domain expertise, guardrails, and analytics interpretation.
 
 - **Strategist**: Claude doesn't just execute, it advises on B2B social best practices
 - **Orchestrator**: multi-step workflows (campaign, messages, posts, approval, advocacy) in a single command
@@ -51,6 +51,11 @@ flowchart LR
 ## Quick start
 
 ```bash
+# Credentials for the bundled MCP server (in your shell, before starting Claude Code)
+export OKTOPOST_API_KEY=<api-key>
+export OKTOPOST_ACCOUNT_ID=<account-id>
+export OKTOPOST_ACCOUNT_REGION=us   # or eu
+
 # Install (inside Claude Code)
 /plugin marketplace add Oktopost/oktopost-claude
 /plugin install oktopost-claude@oktopost
@@ -74,7 +79,8 @@ flowchart LR
 ```
 
 This installs the skill, both subagents, and the `oktopost` MCP server together.
-The bundled MCP server reads its credentials from your environment:
+The bundled MCP server reads its credentials from your environment, so set them
+before you start Claude Code (or let `/oktopost setup` add them to your shell profile):
 
 ```bash
 export OKTOPOST_API_KEY=<api-key>
@@ -82,8 +88,8 @@ export OKTOPOST_ACCOUNT_ID=<account-id>
 export OKTOPOST_ACCOUNT_REGION=us   # or eu; defaults to us
 ```
 
-If you'd rather not export them, skip that step and run `/oktopost setup` —
-it registers a credentialed MCP server for you and takes precedence.
+Without these the plugin's MCP server has no credentials and Oktopost calls fail.
+Restart Claude Code after changing them.
 
 ### Standalone script
 
@@ -94,12 +100,6 @@ into `~/.claude/`):
 git clone https://github.com/Oktopost/oktopost-claude.git
 cd oktopost-claude
 sh install.sh
-```
-
-A one-liner curl is also supported:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Oktopost/oktopost-claude/main/install.sh | sh
 ```
 
 This copies the skill to `~/.claude/skills/oktopost/` and both subagents to
@@ -130,7 +130,7 @@ sh install.sh --with-mcp YOUR_API_KEY ACCOUNT_ID [us|eu]
 **Register the MCP server yourself (skip install.sh):**
 
 ```bash
-claude mcp add oktopost \
+claude mcp add --scope user oktopost \
   -e OKTOPOST_ACCOUNT_ID=<account-id> \
   -e OKTOPOST_API_KEY=<api-key> \
   [-e OKTOPOST_ACCOUNT_REGION=eu] \
@@ -227,7 +227,10 @@ The skill ships with `oktopost-example.json` as a **reference template**. It is 
 
 1. Copy the reference into your personal presets dir:
    ```bash
-   cp ~/.claude/skills/oktopost/presets/oktopost-example.json ~/.oktopost/presets/your-brand.json
+   cp <skill-dir>/presets/oktopost-example.json ~/.oktopost/presets/your-brand.json
+   ```
+   `<skill-dir>` is `~/.claude/skills/oktopost` for a standalone install, or the skill folder inside the plugin cache for a marketplace install.
+   ```bash
    ```
 2. Edit `your-brand.json`: replace `REPLACE_WITH_PROFILE_ID` values with the profile IDs from `/oktopost preset show` or `list_social_profiles`.
 
@@ -282,7 +285,7 @@ oktopost-claude/
     └── marketplace.json           # Marketplace manifest
 ```
 
-The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) npm package, Oktopost's first-party MCP server. The MCP provides 85 raw tools; the skill adds B2B expertise, multi-step orchestration, guardrails, and analytics interpretation on top.
+The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) npm package, Oktopost's first-party MCP server. The MCP provides 89 raw tools; the skill adds B2B expertise, multi-step orchestration, guardrails, and analytics interpretation on top.
 
 ---
 
@@ -298,13 +301,13 @@ The skill wraps the [`oktopost-mcp`](https://github.com/Oktopost/Oktopost-MCP) n
 ## FAQ
 
 **What networks are supported?**
-LinkedIn, X/Twitter, Facebook, and Instagram. The same networks Oktopost supports.
+The skill's guidance and validation cover LinkedIn, X/Twitter, Facebook, Instagram, YouTube and TikTok. The MCP server also accepts Threads, Bluesky, WeChat, Xing and WhatsApp on some tools; the skill passes those through without network-specific validation.
 
 **Do I need the MCP server?**
 Recommended for full functionality. Without it, the skill falls back to direct API calls via Python scripts.
 
 **Can I manage multiple accounts?**
-Yes. Create a preset per account with `account_id` and `region`, then switch with `/oktopost preset use <name>`.
+One account at a time. The MCP server is bound to the account in its credentials; to switch, re-run `/oktopost setup` with the other account's credentials and restart Claude Code.
 
 **What about rate limits?**
 20,000 API calls per day, 60 per minute. The skill handles backoff automatically.

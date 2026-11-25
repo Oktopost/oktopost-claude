@@ -152,16 +152,16 @@ do_mcp_setup() {
   fi
 
   # Remove any prior registration so re-runs are idempotent.
-  claude mcp remove oktopost >/dev/null 2>&1 || true
+  claude mcp remove --scope user oktopost >/dev/null 2>&1 || true
 
   if [ -n "${MCP_REGION}" ]; then
-    claude mcp add oktopost \
+    claude mcp add --scope user oktopost \
       -e "OKTOPOST_ACCOUNT_ID=${MCP_ACCOUNT_ID}" \
       -e "OKTOPOST_API_KEY=${MCP_KEY}" \
       -e "OKTOPOST_ACCOUNT_REGION=${MCP_REGION}" \
       -- npx oktopost-mcp
   else
-    claude mcp add oktopost \
+    claude mcp add --scope user oktopost \
       -e "OKTOPOST_ACCOUNT_ID=${MCP_ACCOUNT_ID}" \
       -e "OKTOPOST_API_KEY=${MCP_KEY}" \
       -- npx oktopost-mcp

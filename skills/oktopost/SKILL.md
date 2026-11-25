@@ -10,7 +10,7 @@ description: >
   and all /oktopost commands.
 argument-hint: "[help|publish|campaign|analytics|advocacy|inbox|calendar|approve|dashboard|preset|setup] <details> [--yes] [--key <k> --account <id> --region <us|eu>]"
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   author: Oktopost
   mcp-package: "oktopost-mcp"
 ---
@@ -69,7 +69,7 @@ If the user runs an unrecognized subcommand (e.g., `/oktopost postit`), respond 
 
 Include a short footer in the help output:
 
-> **Tip:** append `--yes` (or `-y`) to write commands (`publish`, `campaign`, `advocacy`, `approve`) to skip the interactive confirm step. Validation, approval routing, and destructive-delete confirmations still run. See §3a.
+> **Tip:** append `--yes` (or `-y`) to write commands (`publish`, `campaign`, `advocacy`) to skip the interactive confirm step. Approvals, validation, approval routing, and destructive-change confirmations still run. See §3a.
 
 ---
 
@@ -77,8 +77,9 @@ Include a short footer in the help output:
 
 Every operation follows this pipeline regardless of workflow mode. Do not skip steps.
 
-0. **Verify Connection** -- Before the first Oktopost operation of the session, confirm the MCP is connected by calling `list_social_profiles` with `_count=25` (Oktopost rejects page sizes below 25 with "Page size X is not valid." -- valid values are 25/50/100 only). You only need to see that a response arrived; the actual profile count doesn't matter for the health check. Cache the result for the rest of the session -- do not re-check on every turn.
-   - **Success:** remember the connected account name and continue silently.
+0. **Verify Connection** -- Before the first Oktopost operation of the session, confirm the MCP is connected by calling `list_social_profiles` (it takes no paging parameters). You only need to see that a response arrived; the actual profile count doesn't matter for the health check. Cache the result for the rest of the session -- do not re-check on every turn.
+   - **Success:** remember that the connection works and continue silently.
+   - **`Result: false` with an empty `Errors` list:** the server is running without valid credentials (the plugin server starts even when `OKTOPOST_API_KEY` / `OKTOPOST_ACCOUNT_ID` aren't set). Respond with: *"Oktopost is installed but has no working credentials. Run `/oktopost setup` to connect your account, then retry."* Do not call any other MCP tools.
    - **"MCP server not found" / tool missing:** the skill isn't wired up yet. Respond with: *"Oktopost isn't connected yet. Run `/oktopost setup` to connect your account, then retry."* Do not call any other MCP tools.
    - **401 / 403:** the MCP is wired up but credentials are bad or revoked. Respond with: *"Your Oktopost API key isn't valid (or was rotated). Run `/oktopost setup` to re-enter credentials."* Different message from the "not connected" case -- the fix is the same command but the user should know WHY.
    - **Network error / timeout:** retry once with 2s backoff. On second failure, fall back to direct API per `references/api-fallback.md` and warn the user that MCP is unavailable -- follow the "REST fallback invocation" block in §7.
@@ -98,14 +99,15 @@ Every operation follows this pipeline regardless of workflow mode. Do not skip s
 Power users can append `--yes` (or `-y`) to any write-mode command to skip the interactive "shall I schedule this?" confirm step.
 
 **What `--yes` skips:**
-- The final "ready to schedule?" / "ready to create?" confirmation prompt for publish, campaign, advocacy create, preset create, and bulk-approve operations.
+- The final "ready to schedule?" / "ready to create?" confirmation prompt for publish, campaign, advocacy create, and preset create operations.
 
 **What `--yes` does NOT skip -- these run regardless:**
 - **Approval workflow routing.** If the active preset has `approval_required: true`, or if the target campaign is tied to an approval workflow, the content STILL routes through `send_to_workflow`. Compliance is not user-confirmed; it is configured.
 - **Network validation.** Character limits, hashtag counts, image specs, video duration -- all still checked per `references/social-networks.md`. A post that fails validation is rejected with a specific fix suggestion, regardless of `--yes`.
 - **Orphan-campaign warning.** If the post has no campaign association, the warning still prints (attribution is broken). `--yes` will proceed anyway -- the warning is informational, not blocking.
 - **Stale preset warning.** If the preset contains `REPLACE_WITH_PROFILE_ID` or references a profile ID that no longer exists in `list_social_profiles`, the operation stops and asks for a fix. `--yes` cannot override this -- it would publish to nothing.
-- **Destructive deletes.** `--yes` does NOT apply to `delete_campaign`, `delete_post`, `delete_message`, `delete_board_story`, `delete_advocate`. Deletes always require explicit confirmation.
+- **Approvals.** `--yes` never approves anything. Every workflow item is shown and approved or rejected explicitly, one by one.
+- **Destructive and bulk changes.** `--yes` does NOT apply to `delete_campaign`, `delete_post`, `delete_message`, `delete_board_story`, `delete_board_topic`, `delete_advocate`, `delete_media`, `delete_media_folder` (cascades to every child folder and asset), `delete_custom_calendar_event`, `delete_conversation_tag`, `remove_from_workflow`, `update_advocate` with `users` (bulk), or `update_campaign` with `status: archived` (deletes the campaign's scheduled posts). These always require explicit confirmation.
 
 **Usage examples:**
 
@@ -139,8 +141,8 @@ Analyze content type (thought leadership, product update, event, engagement). Ap
 
 LinkedIn document/carousel posts are the highest-performing B2B format; skipping media is leaving reach on the table. The MCP flow:
 
-1. **Image or GIF** -- Call `create_media` with the public URL (or `create_upload` → get signed URL → upload bytes → reference the upload). Returns a media ID.
-2. **Video** -- Call `create_upload` with `source` (a public URL that supports HEAD and ranged GET), plus optional `name` and `mimeType`. Then call `validate_video_upload` with the returned **media** ID (`mediaId`, not the upload ID). If validation fails, show the specific rule violation from `references/social-networks.md` and ask for a re-encoded file.
+1. **Image or GIF** -- Call `create_media` with the public image URL (`resource`). Returns a media ID. Pass `folderId` to file it in a media folder.
+2. **Video** -- Call `create_upload` with `source` (a public URL that supports HEAD and ranged GET), plus optional `name` and `mimeType`. It returns an upload ID, not a media ID. Poll `get_upload` until processing finishes and it shows the `mediaId`, then call `validate_video_upload` with that **media** ID (never the upload ID). If validation fails, show the specific rule violation from `references/social-networks.md` and ask for a re-encoded file.
 3. **LinkedIn document/carousel (PDF)** -- Same `create_upload` flow; `mimeType: application/pdf`. Validate slide dimensions against LinkedIn's 1080×1080 or 1920×1080 spec per `references/social-networks.md` before upload.
 4. **Attach to the message** -- Pass a single media ID as `create_message({ media: "<mediaId>" })`. `media` takes one ID, not an array -- for several assets on one story use `create_board_story({ mediaIds: "id1,id2" })`, which takes a comma-separated string.
 
@@ -159,7 +161,7 @@ Before calling `send_to_workflow` for the first time in a session:
 
 **Undo / cancel the post you just scheduled:**
 
-If the user says "wait, cancel that" or "undo" immediately after a publish confirmation, don't re-prompt through a full delete workflow. Ask once: *"Delete post ID {id} (scheduled for {time} on {network})?"* — on yes, call `delete_post`. If the post has already published (rare given the immediate-cancel context), explain that `delete_post` removes the Oktopost record but does not retract what's already live on the network.
+If the user says "wait, cancel that" or "undo" immediately after a publish confirmation, don't re-prompt through a full delete workflow. Ask once: *"Delete post ID {id} (scheduled for {time} on {network})?"* — on yes, call `delete_post`. If the post has already published (rare given the immediate-cancel context), explain that `delete_post` only works on posts that haven't gone out yet; a live post has to be taken down on the network itself.
 
 **Post-publish status check (for scheduling more than a few minutes out):**
 
@@ -272,7 +274,7 @@ Do not auto-reply without user review. Do not ignore negative sentiment -- flag 
 
 **Triggers:** "calendar", "schedule", "upcoming", "what's planned"
 
-Pull scheduled posts for the requested timeframe via `get_calendar` (`fromDate` / `toDate`, epoch seconds -- note the names, they are not `startDate`/`endDate`). Display organized by day with network icons. Identify posting cadence gaps -- highlight days with zero posts or networks with no coverage. Suggest content types to fill gaps based on the campaign context.
+Pull scheduled posts for the requested timeframe via `get_calendar` (`fromDate` / `toDate` as `YYYY-MM-DD` date strings, not epoch seconds -- note the names, they are not `startDate`/`endDate`). Display organized by day with network icons. Identify posting cadence gaps -- highlight days with zero posts or networks with no coverage. Suggest content types to fill gaps based on the campaign context.
 
 **Custom calendar events.** The calendar also holds non-post entries -- milestones, launches, deadlines, meetings. Read them with `list_custom_calendar_events` (filter by `before`/`after` or `campaignIds`) and fold them into the day-by-day display: a launch date is exactly the context that explains a posting gap. When the user asks to put a milestone on the calendar, use `create_custom_calendar_event` (`title` max 80 chars, `startDate` epoch seconds; omit `endDate` for a single-day event). Confirm before writing, as with any create.
 
@@ -321,10 +323,9 @@ Social BI dashboards are pre-built report pages inside Oktopost. Each dashboard 
 
 ## 5. Multi-Account Support
 
-Presets can include `account_id` and `region` fields. When `/oktopost preset use <name>` is invoked, switch the active account context to that preset's account. If no preset is loaded, use the default MCP connection.
+The MCP server is bound to one Oktopost account by its credentials, so a preset cannot switch accounts on its own. Presets can record `account_id` and `region` for reference; when `/oktopost preset use <name>` names a different account than the connected one, say so plainly and tell the user that switching means re-running `/oktopost setup` with that account's credentials and restarting Claude Code. Never report a switch that did not happen.
 
-When switching accounts:
-- Confirm the switch with the user before proceeding.
+After a real switch:
 - Re-validate the connection by calling `list_social_profiles`.
 - Update the pipeline context -- do not carry over profile IDs from the previous account.
 
@@ -382,19 +383,21 @@ When the MCP is unavailable (config missing, server crashed, rate-limited for to
 
 ```bash
 # Publishing (one post at a time)
-python3 ~/.claude/skills/oktopost/scripts/publish.py \
+python3 <skill-dir>/scripts/publish.py \
   --campaign "<Campaign Name>" \
   --content "<post text>" \
   --network linkedin \
   --schedule "2026-04-20 09:00:00"   # omit for immediate
 
 # Reporting (account-level or campaign-level)
-python3 ~/.claude/skills/oktopost/scripts/report.py --days 30
-python3 ~/.claude/skills/oktopost/scripts/report.py --campaign <campaign-id>
+python3 <skill-dir>/scripts/report.py --days 30
+python3 <skill-dir>/scripts/report.py --campaign <campaign-id>
 
 # Liveness / profile listing
-python3 ~/.claude/skills/oktopost/scripts/validate.py
+python3 <skill-dir>/scripts/validate.py
 ```
+
+`<skill-dir>` is this skill's base directory, shown when the skill loads: `~/.claude/skills/oktopost` for a standalone install, a folder inside the plugin cache for a marketplace install.
 
 **Credentials source.** The scripts read credentials from (in order): environment variables `OKTOPOST_ACCOUNT_ID` / `OKTOPOST_API_KEY` / `OKTOPOST_ACCOUNT_REGION`, then `~/.claude.json` under `mcpServers.oktopost.env.*`, then `~/.claude/settings.json` as a legacy location. If none are set, the script prints a specific "run `/oktopost setup`" message and exits non-zero.
 
@@ -452,7 +455,7 @@ Load these on-demand when the workflow requires them. Do NOT load all references
 | `oktopost-content-strategist` (see `agents/content-strategist.md`) | Content ideation, multi-idea brainstorms, full editorial calendars, pillar-mapped post variants |
 | `oktopost-analytics-interpreter` (see `agents/analytics-interpreter.md`) | Multi-metric or multi-week analysis, advocacy-vs-organic comparison, dashboard report interpretation |
 
-Invoke via the Agent tool with the `subagent_type` matching the `name:` field in the agent file. See §4 Publishing/Analytics modes for prompt templates.
+Invoke via the Agent tool with the `subagent_type` matching the `name:` field in the agent file. A marketplace plugin install registers them with the plugin prefix, `oktopost-claude:oktopost-content-strategist` and `oktopost-claude:oktopost-analytics-interpreter`; use whichever name the Agent tool lists. See §4 Publishing/Analytics modes for prompt templates.
 
 ---
 
@@ -468,8 +471,8 @@ When the user runs `/oktopost setup`, walk this flow:
 
 ### Step 1 -- Check existing config
 
-- Run `list_social_profiles` with `_count=25` (valid page sizes are 25/50/100 only; smaller values are rejected).
-- If it succeeds: report the connected account name, then jump to Step 7 (preset bootstrap). Skip Steps 2-6.
+- Run `list_social_profiles` (no paging parameters).
+- If it succeeds: report that Oktopost is connected and how many profiles it sees, then jump to Step 7 (preset bootstrap). Skip Steps 2-6.
 - If it fails because the MCP server is not registered: continue to Step 2.
 - If it fails with 401/403: the key is invalid -- skip to Step 2 and re-collect credentials.
 
@@ -508,14 +511,26 @@ curl -s -o /dev/null -w "%{http_code}" \
 
 Never register a key that failed validation. Wrong credentials registered to the MCP produce confusing failures later.
 
-### Step 4 -- Register the MCP server via Bash
+### Step 4 -- Connect the MCP server
 
-Run this **yourself via the Bash tool**. Do NOT print the command for the user to paste:
+First check how the skill was installed: run `claude mcp list` via Bash and look for a server named `plugin:oktopost-claude:oktopost`.
+
+**Marketplace plugin install (that server is listed).** The plugin already ships the server; it reads `OKTOPOST_API_KEY`, `OKTOPOST_ACCOUNT_ID` and `OKTOPOST_ACCOUNT_REGION` from the environment. Do NOT run `claude mcp add` -- that would create a second server that the plugin's one can't see or override. Instead, ask the user whether to append these lines to their shell profile (`~/.zshrc` or `~/.bashrc`), and only on a yes append them via Bash:
 
 ```bash
-claude mcp remove oktopost 2>/dev/null || true
+export OKTOPOST_ACCOUNT_ID=<account_id>
+export OKTOPOST_API_KEY=<api_key>
+export OKTOPOST_ACCOUNT_REGION=<us|eu>
+```
+
+Then tell the user to restart Claude Code from a new terminal so the plugin server starts with the new values. On key rotation, replace the existing lines rather than adding new ones.
+
+**Standalone install (no plugin server listed).** Register the server **yourself via the Bash tool**, at user scope so it works in every project. Do NOT print the command for the user to paste:
+
+```bash
+claude mcp remove --scope user oktopost 2>/dev/null || true
 # Build the args; only include REGION for EU
-claude mcp add oktopost \
+claude mcp add --scope user oktopost \
   -e "OKTOPOST_ACCOUNT_ID=<account_id>" \
   -e "OKTOPOST_API_KEY=<api_key>" \
   [-e "OKTOPOST_ACCOUNT_REGION=eu"] \
@@ -535,10 +550,10 @@ If the MCP tools haven't shown up after the user's next turn, don't retry silent
 Before declaring setup complete, verify that writes actually work -- not just reads. This catches auth tokens with read-only scope, permission problems, or partially-broken campaigns.
 
 - Skip this step if the MCP server isn't loaded yet (the common case immediately after Step 4 registration, before hot-reload). Instead mark setup as "validated; write path will be confirmed on first publish."
-- If the MCP IS loaded, run an **idempotent find-or-create** smoke test:
+- If the MCP IS loaded, ask the user first: *"Can I run a quick write test? It creates a holding campaign called `_oktopost-claude-setup-check` (kept for future checks) and one message that I delete straight away. Nothing is posted."* Only on a yes, run an **idempotent find-or-create** smoke test:
   1. Call `list_campaigns` and look for an existing campaign named exactly `_oktopost-claude-setup-check`.
   2. If it doesn't exist, `create_campaign({ name: "_oktopost-claude-setup-check" })` — this is the permanent holding campaign; re-use it on every setup run. The underscore prefix keeps it out of normal campaign lists.
-  3. `create_message` with body `"Setup smoke test -- safe to delete"` in that campaign.
+  3. `create_message` in that campaign with `network: "LinkedIn"` and `message: "Setup smoke test -- safe to delete"`.
   4. `delete_message` for the ID you just created.
   5. Do **NOT** delete the holding campaign. It's idempotent infrastructure; leave it.
 - On success: tell the user "Write path verified -- you can publish."

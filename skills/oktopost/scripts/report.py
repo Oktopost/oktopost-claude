@@ -12,7 +12,7 @@ import urllib.error
 
 CLAUDE_MAIN_CONFIG = os.path.expanduser("~/.claude.json")
 CLAUDE_LEGACY_CONFIG = os.path.expanduser("~/.claude/settings.json")
-REGIONS = {"us": "https://api.oktopost.com", "eu": "https://api.eu.oktopost.com"}
+REGIONS = {"us": "https://api.oktopost.com", "eu": "https://eu-api.oktopost.com"}
 
 
 def _from_claude_config(path):

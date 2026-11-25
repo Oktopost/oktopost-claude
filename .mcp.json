@@ -1,3 +1,16 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "oktopost": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "oktopost-mcp"
+      ],
+      "env": {
+        "OKTOPOST_API_KEY": "${OKTOPOST_API_KEY}",
+        "OKTOPOST_ACCOUNT_ID": "${OKTOPOST_ACCOUNT_ID}",
+        "OKTOPOST_ACCOUNT_REGION": "${OKTOPOST_ACCOUNT_REGION:-us}"
+      }
+    }
+  }
 }
