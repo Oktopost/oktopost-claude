@@ -13,7 +13,7 @@ import urllib.error
 CLAUDE_MAIN_CONFIG = os.path.expanduser("~/.claude.json")            # primary MCP config
 CLAUDE_LEGACY_CONFIG = os.path.expanduser("~/.claude/settings.json")  # legacy
 PRESETS_DIR = os.path.expanduser("~/.oktopost/presets")
-REGIONS = {"us": "https://api.oktopost.com", "eu": "https://api.eu.oktopost.com"}
+REGIONS = {"us": "https://api.oktopost.com", "eu": "https://eu-api.oktopost.com"}
 MCP_SERVER_NAME = "oktopost"
 
 
@@ -56,10 +56,10 @@ def register_mcp_via_cli(account_id, api_key, region):
         print("Install Node.js 20+ (https://nodejs.org) so the oktopost-mcp server can run.")
         sys.exit(1)
 
-    subprocess.run(["claude", "mcp", "remove", MCP_SERVER_NAME],
+    subprocess.run(["claude", "mcp", "remove", "--scope", "user", MCP_SERVER_NAME],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
-    cmd = ["claude", "mcp", "add", MCP_SERVER_NAME,
+    cmd = ["claude", "mcp", "add", "--scope", "user", MCP_SERVER_NAME,
            "-e", f"OKTOPOST_ACCOUNT_ID={account_id}",
            "-e", f"OKTOPOST_API_KEY={api_key}"]
     if region and region != "us":
@@ -73,7 +73,7 @@ def register_mcp_via_cli(account_id, api_key, region):
         print("  - The 'oktopost-mcp' npm package is not yet available in your registry.")
         print("  - Claude Code CLI version does not support the 'mcp add' subcommand.")
         print("You can still use the skill in fallback mode via the REST API scripts in")
-        print(f"  ~/.claude/skills/oktopost/scripts/ (publish.py, report.py).")
+        print(f"  the skill's scripts/ folder (publish.py, report.py).")
         sys.exit(1)
 
 

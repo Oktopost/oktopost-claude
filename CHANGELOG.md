@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-25
+
+### Added
+- Four tools the server now exposes: `update_media` (move an asset into a folder or back to the library root), `delete_media` (archived instead of deleted while a message still uses the asset), `update_advocate` (role and custom field values for one advocate or up to 100), and `list_advocate_custom_fields`.
+- `tags` (tag names) alongside `tagIds` on `create_message`, `update_message`, `create_board_story` and `update_board_story`.
+- `create_board_story` can create its advocate messages in the same call (`messages`, each `{network, message}`) and takes an `idempotencyKey` for safe retries.
+- `create_media` takes `folderId`; `list_conversations` takes `language`; `invite_advocate` takes `customFields`.
+- `list_board_stories` filters (status, approval status, creator, topics, tags, featured, repost, search) with paging and ordering. `list_advocates` filters by search text (`q`), role, custom fields, leaderboard and share counts, and takes `_order`.
+- Networks: `create_message` and `list_social_profiles` accept Threads, Bluesky and WhatsApp (and `create_message` WeChat and Xing); `get_calendar` filters accept Threads and Bluesky; `list_conversations` accepts WeChat and Xing.
+- Array item fields are documented as `parent[].field` rows (`create_board_story.messages[]`, `invite_advocate.users[]`, `update_advocate.users[]`).
+
+### Changed
+- **Breaking:** the network enum value is now `Youtube`, not `YouTube`, on `create_message` and `list_social_profiles`.
+- **Breaking:** `list_advocates` no longer takes `email`; search with `q`. Its `_count` accepts 1-100.
+- **Breaking:** `list_messages` no longer takes `network`.
+- `update_post` `firstComment` is an object (`text`, `media`) or null.
+- Tool descriptions and parameter tables regenerated from the live `tools/list` schemas: 89 tools.
+- `--yes` never approves workflow items, and the confirm-always list now covers every delete plus bulk `update_advocate` and archiving a campaign.
+- Setup's write test asks first, and its `create_message` call uses `network` and `message`.
+- Multi-account: the docs no longer claim a preset can switch accounts; switching means re-running setup.
+
+### Fixed
+- `.mcp.json` now registers the `oktopost` MCP server (`npx -y oktopost-mcp`), reading `OKTOPOST_API_KEY`, `OKTOPOST_ACCOUNT_ID` and `OKTOPOST_ACCOUNT_REGION` (default `us`) from the environment. It was committed empty in 1.2.0, so a marketplace install had no tools.
+- `/oktopost setup` on a plugin install sets the environment variables instead of registering a second `oktopost` server. Standalone registrations (`install.sh`, `setup.py`, setup step 4, README) use `--scope user`, so the server works in every project, not only the directory setup ran in.
+- EU fallback host corrected to `eu-api.oktopost.com` in all four scripts (`api.eu.oktopost.com` does not resolve).
+- `validate.py` no longer crashes with `NameError` when no credentials are found.
+- `get_calendar` dates are `YYYY-MM-DD` strings, not epoch seconds; the timestamp convention lists the exceptions.
+- Delete behaviour matches the server: `delete_campaign` removes the campaign's data, and `delete_post` only works on posts that haven't gone out.
+- Video uploads poll `get_upload` for the `mediaId` before `validate_video_upload`.
+- Pipeline step 0 handles a server running without credentials (`Result: false` with no errors).
+- Fallback script and preset paths use the skill's base directory, so they work for plugin installs; plugin-prefixed agent names are documented.
+- Removed the `curl | sh` one-liner from the README; it can't locate the skill files when piped.
+
 ## [1.2.0] - 2026-09-10
 
 ### Fixed

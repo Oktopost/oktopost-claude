@@ -10,7 +10,7 @@ import urllib.error
 
 CLAUDE_MAIN_CONFIG = os.path.expanduser("~/.claude.json")            # primary: MCP servers live here
 CLAUDE_LEGACY_CONFIG = os.path.expanduser("~/.claude/settings.json")  # legacy location
-REGIONS = {"us": "https://api.oktopost.com", "eu": "https://api.eu.oktopost.com"}
+REGIONS = {"us": "https://api.oktopost.com", "eu": "https://eu-api.oktopost.com"}
 
 
 def _from_claude_config(path):
@@ -62,7 +62,7 @@ def main():
     region, account_id, api_key = get_credentials()
     if not account_id or not api_key:
         print("ERROR: No credentials found. Set OKTOPOST_ACCOUNT_ID and OKTOPOST_API_KEY env vars,")
-        print(f"       or run setup.py to configure {SETTINGS_PATH}")
+        print(f"       or run setup.py to configure ~/.claude.json")
         sys.exit(1)
 
     base_url = REGIONS.get(region, REGIONS["us"])

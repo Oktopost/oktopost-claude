@@ -1,7 +1,7 @@
 # Oktopost MCP Tools Reference
 
 > Authoritative reference for the tools exposed by the `oktopost-mcp` package.
-> Read this before every Oktopost API operation.
+> Load it once per session, before the first Oktopost operation.
 >
 > Parameter tables in this file are generated from the server's own tool schemas
 > (`tools/list`), so they match what the server actually accepts. Regenerate them
@@ -13,8 +13,8 @@
 
 | Convention | Detail |
 |---|---|
-| **Timestamps** | Unix epoch **seconds** (not milliseconds, not ISO-8601). Always divide JS `Date.now()` by 1000 when passing dates. |
-| **Pagination** | Offset-based, but not uniform -- always check the tool's own table. Most list tools take `_page` (0-indexed) + `_count`; `list_workflow_items` uses bare `page`/`count`; `list_media_folders` uses `_start`/`_count`; `list_conversations` takes `_count` with no page param. Ten list tools take no pagination at all, including `list_messages`, `list_media`, `list_social_posts`, `list_social_profiles`, `list_workflows` and `list_targeting_presets`. Where `_count` is constrained it is 25, 50 or 100 only (default 25) and smaller values are rejected with "Page size X is not valid." |
+| **Timestamps** | Mostly Unix epoch **seconds** (not milliseconds). Always divide JS `Date.now()` by 1000 when passing dates. Exceptions: `get_calendar` takes `fromDate`/`toDate` as `YYYY-MM-DD`, and `list_posts` takes `before`/`after` as `YYYY-MM-DD HH:MM:SS`. Check each tool's table. |
+| **Pagination** | Offset-based, but not uniform -- always check the tool's own table. Most list tools take `_page` (0-indexed) + `_count`; `list_workflow_items` uses bare `page`/`count`; `list_media_folders` uses `_start`/`_count`; `list_conversations` takes `_count` with no page param. Ten list tools take no pagination at all, including `list_messages`, `list_media`, `list_social_posts`, `list_social_profiles`, `list_workflows` and `list_targeting_presets`. Where `_count` is constrained it is usually 25, 50 or 100 only (default 25) and smaller values are rejected with "Page size X is not valid."; `list_advocates` and `list_board_stories` take any value from 1 to 100. |
 | **Updates** | POST to `/{resource}/{id}` (not PUT/PATCH). |
 | **Message vs Post** | A **Message** is reusable content (text + assets). A **Post** is a scheduled or published instance tied to one or more social profiles. |
 | **IDs** | All resource IDs are strings, and most carry a type prefix -- messages `005`, social profiles `003-`, workflows `cwf`, custom calendar events `0CE`. |
@@ -110,7 +110,6 @@ create_post, update_message, and create_board_story.
 |---|---|---|---|
 | `campaignId` | string |  | The Oktopost campaign Id. Mandatory if 'ids' is not provided. |
 | `withTags` | boolean |  | Includes the message tags in the response. Defaults to `False`. |
-| `network` | string |  | Filters by the social network: Twitter, LinkedIn, Facebook, Instagram, YouTube, or TikTok. One of: `Twitter`, `LinkedIn`, `Facebook`, `Instagram`, `YouTube`, `TikTok`. |
 | `ids` | string |  | Comma separated list of message IDs (start with 005), max 100. Mandatory if 'campaignId' is not provided. |
 
 **Returns:** Array of message objects (`id`, `campaignId`, `body`, `createdAt`, `updatedAt`, optional `tags`, optional `assets`).
@@ -133,18 +132,22 @@ messageId from a Post's MessageId field or from list_messages.
 Create a new message (the content asset: body text, link, media). Messages are not published
 directly — use create_post to schedule delivery to a social profile, or pass the returned Id as
 messageIds to create_board_story to add as a shareable variation in an advocacy story. Get
-campaignId from list_campaigns and network from list_social_profiles.
+campaignId from list_campaigns and network from list_social_profiles. Omit both tags and tagIds
+to inherit the campaign's tags on a new message. If the content matches an existing message,
+omitting both keeps that message's tags. Sending tags or tagIds replaces the set. An empty value
+clears the tags and does not inherit them.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `network` | string | * | The social network: Facebook, Twitter, LinkedIn, YouTube, Instagram, or TikTok. One of: `Facebook`, `Twitter`, `LinkedIn`, `YouTube`, `Instagram`, `TikTok`. |
+| `network` | string | * | The social network. Accepted: Facebook, Twitter, LinkedIn, Instagram, Youtube, TikTok, Threads, Bluesky, WeChat, Xing, WhatsApp. One of: `Facebook`, `Twitter`, `LinkedIn`, `Instagram`, `Youtube`, `TikTok`, `Threads`, `Bluesky`, `WeChat`, `Xing`, `WhatsApp`. |
 | `campaignId` | string | * | The campaign Id for the message. |
 | `message` | string | * | The messages' content. |
 | `linkUrl` | string |  | Link attachment Url. |
 | `linkTitle` | string |  | Link attachment title. |
 | `description` | string |  | Link attachment description. |
 | `imageUrl` | string |  | Link attachment image Url. |
-| `tagIds` | string |  | A list of comma separated tag Ids. If empty, the message will inherit tags from the campaign. |
+| `tags` | string[] |  | Tag names. Omit both tags and tagIds to inherit the campaign's tags on a new message. If the content matches an existing message, omitting both keeps that message's tags. Sending tags or tagIds replaces the set. An empty value clears the tags and does not inherit them. Names may contain commas; each array entry is one name. list_tags is optional. An unknown name is created only when the caller can create tags. Without that permission the name is dropped, and the request still replaces the set, so a list of only those names clears it. Sending both tags and tagIds as non-empty lists is rejected. |
+| `tagIds` | string |  | Comma-separated tag IDs from list_tags. Omit both tags and tagIds to inherit the campaign's tags on a new message. If the content matches an existing message, omitting both keeps that message's tags. Sending tags or tagIds replaces the set. An empty value clears the tags and does not inherit them. Sending both tags and tagIds as non-empty lists is rejected. |
 | `media` | string |  | The media attachment Id (from create_media or list_media). |
 | `title` | string |  | The title for YouTube videos. |
 
@@ -154,7 +157,8 @@ campaignId from list_campaigns and network from list_social_profiles.
 
 Update a message's text content, link attachment fields (linkUrl, linkTitle, description,
 imageUrl), media, tags, or YouTube title. All link attachment fields must be provided together
-when updating link attachments.
+when updating link attachments. Omit both tags and tagIds to keep the current tags. Sending tags
+or tagIds replaces the set. An empty value clears the tags.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -164,7 +168,8 @@ when updating link attachments.
 | `linkTitle` | string |  | Link attachment title |
 | `description` | string |  | Link attachment description |
 | `imageUrl` | string |  | Link attachment image URL |
-| `tagIds` | string |  | Comma-separated list of tag IDs |
+| `tags` | string[] |  | Tag names. Omit both tags and tagIds to keep the current tags. Sending tags or tagIds replaces the set. An empty value clears the tags. Names may contain commas; each array entry is one name. list_tags is optional. An unknown name is created only when the caller can create tags. Without that permission the name is dropped, and the request still replaces the set, so a list of only those names clears it. Sending both tags and tagIds as non-empty lists is rejected. |
+| `tagIds` | string |  | Comma-separated tag IDs from list_tags. Omit both tags and tagIds to keep the current tags. Sending tags or tagIds replaces the set. An empty value clears the tags. Sending both tags and tagIds as non-empty lists is rejected. |
 | `media` | string |  | Media attachment ID |
 | `title` | string |  | Title for YouTube videos |
 
@@ -264,7 +269,9 @@ list_posts.
 | `startDateTime` | integer |  | Unix timestamp. Scheduled time for the post to go out. |
 | `status` | string |  | Post status. One of: `pending`, `draft`. |
 | `targetingPresetId` | string |  | A targeting preset ID to apply LinkedIn audience targeting. Applies to LinkedIn profiles only. Get IDs from list_targeting_presets. |
-| `firstComment` | string |  | First comment on an unsent LinkedIn post. Omit to leave the existing comment unchanged. Pass null or an empty object to remove the entire first comment. Pass {"media": ""} to remove only the attached image and preserve the text. Send only changed fields for a partial update. |
+| `firstComment` | object or null |  | First comment on an unsent LinkedIn post. Omit to leave the existing comment unchanged. Pass null or an empty object to remove the entire first comment. Pass {"media": ""} to remove only the attached image and preserve the text. Send only changed fields for a partial update. |
+| `firstComment.text` | string |  | Comment text. Max 3000 characters. Text is trimmed; it may be empty after trimming only when media is provided. |
+| `firstComment.media` | string |  | A single pre-uploaded image media ID from create_media or list_media. Videos and PDFs are rejected. On update_post, pass an empty string to remove attached media. |
 
 **Returns:** Updated post object.
 
@@ -332,7 +339,7 @@ Already-sent posts cannot be removed via the API. Get postId from list_posts.
 
 **Returns:** Confirmation.
 
-**Note:** Deleting a published post removes it from Oktopost's records but does not retract the already-published social post on the network. Deletion on the network must be done manually where the platform allows.
+**Note:** Only posts that have not gone out can be deleted. A published post stays live on the network and has to be taken down there, where the platform allows.
 
 ---
 
@@ -369,14 +376,36 @@ Get a single media object by its ID. Get mediaId from list_media or create_media
 
 Create a new media asset from a valid, publicly accessible image URL. Returns a mediaId usable
 in create_message (media field), create_board_story (mediaIds), or as firstComment.media on
-create_post/update_post (LinkedIn first comments; images only). Media can be organized into
-folders using list_media_folders and create_media_folder.
+create_post/update_post (LinkedIn first comments; images only). Pass an optional folderId from
+list_media_folders to place the asset in that folder.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `resource` | string | * | The valid image URL that can be publicly accessed. |
+| `folderId` | string |  | Folder ID from list_media_folders. Omit to create the asset at the library root. |
 
 **Returns:** Created media object with generated `id`.
+
+### `update_media`
+
+Move a media asset into a folder, or back to the library root. Get mediaId from list_media or
+create_media, and folderId from list_media_folders. Pass an empty folderId to move the asset to
+the root. An unknown folder returns 400.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `mediaId` | string | * | The ID of the media asset to move. Get it from list_media or create_media. |
+| `folderId` | string | * | Destination folder ID from list_media_folders. An empty string moves the asset to the library root. |
+
+### `delete_media`
+
+Delete a media asset by its ID. If the asset is still referenced by a message it is archived
+rather than hard-deleted and will not be removed from that message. Get mediaId from list_media
+or create_media.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `mediaId` | string | * | The ID of the media to delete. |
 
 ### `list_uploads`
 
@@ -418,9 +447,9 @@ create_message or create_board_story.
 ### `validate_video_upload`
 
 Validate an uploaded video against each social network's specifications (Facebook, LinkedIn,
-Twitter, Instagram, YouTube). Returns per-network validation results with any errors. Accepts a
-mediaId. Run after create_upload completes to check network compatibility before using the
-media.
+Twitter, Instagram, InstagramStory, Youtube, TikTok, Threads, Bluesky). Returns per-network
+validation results with any errors. Accepts a mediaId. Run after create_upload completes to
+check network compatibility before using the media.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -494,7 +523,7 @@ posts within a specified date range, with optional filters.
 |---|---|---|---|
 | `fromDate` | string | * | Start date for the calendar data. Format: YYYY-MM-DD. |
 | `toDate` | string | * | End date for the calendar data. Format: YYYY-MM-DD. |
-| `filters` | string |  | JSON string of filters (e.g., {"campaigns": ["002000000000001"], "networks": ["LinkedIn"]}). Can include: campaigns, credentials, messages, networks (Facebook, Twitter, LinkedIn, Instagram, YouTube, TikTok), postSources, statuses, users. |
+| `filters` | string |  | JSON string of filters (e.g., {"campaigns": ["002000000000001"], "networks": ["LinkedIn"]}). Can include: campaigns, credentials, messages, networks (Facebook, Twitter, LinkedIn, Instagram, Youtube, TikTok, Threads, Bluesky), postSources, statuses, users. |
 
 **Returns:** Array of scheduled and published posts within the date range.
 
@@ -565,8 +594,9 @@ authenticated user lacks permission. Get event IDs from list_custom_calendar_eve
 
 ### `list_tags`
 
-List publishing tags from Oktopost. Tag IDs can be used by create_message, create_campaign,
-update_campaign, update_message, create_board_story, and update_board_story.
+List publishing tags from Oktopost. Pass the tag name in tags on create_message, update_message,
+create_board_story, and update_board_story. Pass the tag ID in tagIds on create_campaign and
+update_campaign.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -595,7 +625,7 @@ publish to.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `network` | string |  | Optional: Filter by social network. Acceptable values: LinkedIn, Twitter, YouTube, Instagram, Facebook, WeChat, Xing, TikTok. One of: `LinkedIn`, `Twitter`, `YouTube`, `Instagram`, `Facebook`, `WeChat`, `Xing`, `TikTok`. |
+| `network` | string |  | Filter by social network. Accepted: Facebook, Twitter, LinkedIn, Instagram, Youtube, TikTok, Threads, Bluesky, WeChat, Xing, WhatsApp. One of: `Facebook`, `Twitter`, `LinkedIn`, `Instagram`, `Youtube`, `TikTok`, `Threads`, `Bluesky`, `WeChat`, `Xing`, `WhatsApp`. |
 | `includeInvalid` | integer |  | Optional: If set to 1, the response will include invalid credentials. One of: `0`, `1`. Defaults to `0`. |
 
 **Returns:** Array of profile objects (`id`, `name`, `network`, `type`, `imageUrl`, `status`).
@@ -724,7 +754,8 @@ Requires the entityId (post, message, or story ID).
 
 List all employee advocacy boards in your Oktopost account. Boards are platforms where advocates
 can share posts on their social media channels. Use the returned board Id with
-list_board_stories, list_board_topics, get_board, or invite_advocate.
+list_board_stories, list_board_topics, get_board, invite_advocate, update_advocate, or
+list_advocate_custom_fields.
 
 Takes no parameters.
 
@@ -733,7 +764,8 @@ Takes no parameters.
 #### `get_board`
 
 Retrieve a single advocacy board by ID, including its full configuration (color, expiration,
-notifications, leaderboard, signup settings). Get boardId from list_boards.
+notifications, leaderboard, signup settings) and board roles (Config.Roles; role IDs are usable
+with update_advocate). Get boardId from list_boards.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -782,13 +814,29 @@ list_board_topics.
 
 #### `list_board_stories`
 
-List stories in an advocacy board. Stories are articles or media assets shared with advocates.
-Requires boardId. Use create_board_story to add new stories. Each story's Id can be passed to
-get_board_story, update_board_story, or send_to_workflow.
+List stories in an advocacy board. Requires boardId. Supports filters, title and description
+search (q), pagination (_page, _count), and sort (_order, _orderDirection). status is the
+lifecycle filter: scheduled, published, and expired are derived from publish and expiration
+dates. approveStatus is the workflow filter (pending, rejected, approved). Each item's Status is
+the stored value (draft, pending, rejected, approved), not scheduled, published, or expired. Use
+create_board_story to add new stories. Each story's Id can be passed to get_board_story,
+update_board_story, or send_to_workflow.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `boardId` | string | * | The board ID to list stories from (starts with brd) |
+| `status` | string |  | Lifecycle filter. scheduled, published, and expired are derived from publish and expiration dates. One of: `draft`, `scheduled`, `published`, `expired`. |
+| `approveStatus` | string |  | Workflow filter. Distinct from status. Item Status stays the stored value (draft, pending, rejected, approved). One of: `pending`, `rejected`, `approved`. |
+| `createdBy` | string |  | Comma-separated user IDs (start with 00A) from list_users |
+| `topicIds` | string |  | Comma-separated topic IDs (start with tpc) from list_board_topics |
+| `tagIds` | string |  | Comma-separated tag IDs from list_tags |
+| `isFeatured` | boolean |  | true returns featured stories only. false returns non-featured stories. Omit to include both. |
+| `isRepost` | boolean |  | true returns repost stories only. false returns non-repost stories. Omit to include both. |
+| `q` | string |  | Search story title and description |
+| `_page` | integer |  | Zero-based page number (default: 0) |
+| `_count` | integer |  | Results per page (default: 20, min: 1, max: 100) |
+| `_order` | string |  | Sort field. Direction is set with _orderDirection. When only a direction is set, the field defaults to publishDate. Omit both to use the API default (publishDate descending). One of: `created`, `publishDate`, `expirationDate`, `shareCount`, `isFeatured`. |
+| `_orderDirection` | string |  | Sort direction for _order (asc or desc). When only a field is set, direction defaults to desc. One of: `asc`, `desc`. |
 
 **Returns:** Array of story objects (`id`, `boardId`, `title`, `body`, `url`, `createdAt`).
 
@@ -807,13 +855,19 @@ storyId from list_board_stories.
 
 Create a new story in an advocacy board. Stories are articles or media assets that advocates can
 share on their social channels. Search for an existing campaign with list_campaigns first. Get
-boardId from list_boards. To attach pre-written social messages, create them first with
-create_message, then pass their IDs as messageIds. To create a repost story from a LinkedIn
-post, pass postlogId — title and description will be auto-derived and link/mediaIds/messageIds
-are ignored. Use generateMessages with reposts to auto-create advocate messages. IMPORTANT:
-Before creating a story, call list_board_topics with the boardId. If the board has existing
-topics, topicIds is REQUIRED and must be a subset of the board's topics (otherwise the API
-returns 400). If the board has no topics, topicIds can be omitted.
+boardId from list_boards. To add advocate messages, prefer passing them inline as messages (up
+to 15): they are created together with the story in one atomic call, inherit the story link,
+media, tags and topics, and nothing is saved if any message is rejected. Alternatively, create
+messages first with create_message and pass their IDs as messageIds (do not combine with
+messages). Pass an idempotencyKey to make retries safe: retrying with the same key returns the
+story created by the first call (IdempotentReplay: true) instead of creating another; a 409
+InProgress error means the first call is still running, so wait a few seconds and retry with the
+same key. To create a repost story from a LinkedIn post, pass postlogId — title and description
+will be auto-derived and link/mediaIds/messageIds are ignored. Use generateMessages with reposts
+to auto-create advocate messages. IMPORTANT: Before creating a story, call list_board_topics
+with the boardId. If the board has existing topics, topicIds is REQUIRED and must be a subset of
+the board's topics (otherwise the API returns 400). If the board has no topics, topicIds can be
+omitted. Omit both tags and tagIds, or send either empty, and the story has no tags.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -824,15 +878,20 @@ returns 400). If the board has no topics, topicIds can be omitted.
 | `postlogId` | string |  | A LinkedIn postlog ID to create a repost story (type: post-attachment). When set, title and description become optional (auto-derived), and link/mediaIds/messageIds are ignored. |
 | `mediaIds` | string |  | Comma-separated media IDs to attach |
 | `link` | string |  | Link URL associated with the story |
-| `messageIds` | string |  | Comma-separated message IDs (start with 005) for pre-written social post variations that advocates can share. Create messages first with create_message, then pass their IDs here. |
+| `messageIds` | string |  | Comma-separated message IDs (start with 005) for pre-written social post variations that advocates can share. Create messages first with create_message, then pass their IDs here. Do not combine with messages. |
+| `messages` | object[] |  | Advocate messages created together with the story in one atomic call (max 15). Each message inherits the story link, media, tags, topics and campaign. Do not combine with messageIds, postlogId or generateMessages. |
+| `messages[].network` | string | * | Social network of the message. Must be enabled on the board. One of: `Facebook`, `LinkedIn`, `Twitter`, `Instagram`, `WeChat`, `Xing`, `WhatsApp`. |
+| `messages[].message` | string | * | The message text advocates will share. |
+| `idempotencyKey` | string |  | 8-128 characters of letters, digits, '.', '_', ':' or '-', unique per story you intend to create. Retrying with the same key and the same arguments returns the story created by the first call instead of creating another. Reusing a key with different arguments fails with 422. |
 | `topicIds` | string |  | Comma-separated topic IDs (start with tpc). REQUIRED if the board has existing topics (must be a subset; omitting causes a 400 error). Call list_board_topics with the boardId first to check. Omit only if the board has no topics. |
-| `tagIds` | string |  | Comma-separated tag IDs |
+| `tags` | string[] |  | Tag names. Omit both tags and tagIds, or send either empty, and the story has no tags. Names may contain commas; each array entry is one name. list_tags is optional. An unknown name is created only when the caller can create tags. Without that permission the name is dropped, and the request still replaces the set, so a list of only those names clears it. Sending both tags and tagIds as non-empty lists is rejected. |
+| `tagIds` | string |  | Comma-separated tag IDs from list_tags. Omit both tags and tagIds, or send either empty, and the story has no tags. Sending both tags and tagIds as non-empty lists is rejected. |
 | `publishDatetime` | number |  | Unix timestamp for when to publish. Defaults to now |
 | `expirationDatetime` | number |  | Unix timestamp for expiration. Defaults to board's default expiration |
 | `isDraft` | boolean |  | Save as draft. Defaults to false |
 | `isFeatured` | boolean |  | Mark as featured. Defaults to false |
 | `workflowId` | string |  | Send to approval workflow (starts with cwf) |
-| `generateMessages` | boolean |  | Automatically generate messages for this story. Defaults to false |
+| `generateMessages` | boolean |  | Automatically generate messages for this story. Defaults to false. Do not combine with messages. |
 
 **Returns:** Created story object.
 
@@ -841,7 +900,8 @@ returns 400). If the board has no topics, topicIds can be omitted.
 Update an existing story in an advocacy board. You can modify title, description, topics,
 featured status, and other properties. For repost stories (created with postlogId), the repost
 association is preserved on update and title/description can be overridden. Get storyId from
-list_board_stories.
+list_board_stories. Omit both tags and tagIds to keep the current tags. Sending tags or tagIds
+replaces the set. An empty value clears the tags.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -854,7 +914,8 @@ list_board_stories.
 | `link` | string |  | Updated link URL |
 | `messageIds` | string |  | Comma-separated message IDs (start with 005) for pre-written social post variations that advocates can share. Create messages with create_message, then pass their IDs here. |
 | `topicIds` | string |  | Comma-separated topic IDs (start with tpc) |
-| `tagIds` | string |  | Comma-separated tag IDs |
+| `tags` | string[] |  | Tag names. Omit both tags and tagIds to keep the current tags. Sending tags or tagIds replaces the set. An empty value clears the tags. Names may contain commas; each array entry is one name. list_tags is optional. An unknown name is created only when the caller can create tags. Without that permission the name is dropped, and the request still replaces the set, so a list of only those names clears it. Sending both tags and tagIds as non-empty lists is rejected. |
+| `tagIds` | string |  | Comma-separated tag IDs from list_tags. Omit both tags and tagIds to keep the current tags. Sending tags or tagIds replaces the set. An empty value clears the tags. Sending both tags and tagIds as non-empty lists is rejected. |
 | `publishDatetime` | number |  | Unix timestamp for when to publish |
 | `expirationDatetime` | number |  | Unix timestamp for expiration |
 | `isDraft` | boolean |  | Update draft status |
@@ -888,31 +949,41 @@ longer see it. Get topicId from list_board_topics.
 
 #### `list_advocates`
 
-List advocates in your account. Optionally scope to a board (boardId) for extended fields and
-activity filters. Supports pagination. Returns advocate IDs usable with get_advocate,
-delete_advocate, and invite_advocate (pass Id as userId to re-invite).
+List advocates in your account. Search by name or email with q. Scope to a board (boardId) to
+filter by role, custom fields, leaderboard, activity (lastSeen, notSeen, neverSeen) or share
+count, and to get board fields. Supports sorting and pagination. Returns advocate IDs usable
+with get_advocate, update_advocate, delete_advocate, and invite_advocate (pass Id as userId to
+re-invite).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `boardId` | string |  | Scope results to a specific board. Enables activity filters (lastSeen, notSeen, neverSeen) and additional response fields (Shares, LastSeen, Role, RoleId, CustomFields, Leaderboards). |
-| `email` | string |  | Filter by exact email address |
-| `lastSeen` | integer |  | Return advocates seen within the last N days. Requires boardId. |
-| `notSeen` | integer |  | Return advocates NOT seen within the last N days. Requires boardId. |
-| `neverSeen` | boolean |  | Return advocates who have never logged in to the board. Requires boardId. |
+| `boardId` | string |  | Scope results to a specific board. Required by every filter except q. Scopes Shares, LastSeen, RoleId and Role to the board and fills CustomFields and Leaderboards. |
+| `q` | string |  | Return advocates whose name or email contains this text. |
+| `role` | string[] |  | Board role IDs to match, for example ["contributor", "champion"]. Built-in IDs are champion, contributor and advocate; custom roles use their RoleId from list_advocates. Requires boardId. |
+| `customFields` | object |  | Map of custom field ID to an option ID or a list of option IDs, for example {"0CF000000000001": ["0CO000000000001", "0CO000000000002"]}. An advocate matches a field when it has any of the listed options, and must match every field. Use "none" (or an empty string) to match advocates with no value for that field. Take IDs from list_advocate_custom_fields, or from FieldId and Option.ID in list_advocates results. Requires boardId. |
+| `leaderboard` | string[] |  | Leaderboard IDs to match. Use "none" to match advocates on no leaderboard. Requires boardId. |
+| `lastSeen` | integer |  | Return advocates seen within the last N days. Requires boardId. Cannot be combined with notSeen or neverSeen. |
+| `notSeen` | integer |  | Return advocates NOT seen within the last N days. Requires boardId. Cannot be combined with lastSeen or neverSeen. |
+| `neverSeen` | boolean |  | When true, return advocates who have never logged in to the board. Requires boardId. Cannot be combined with lastSeen or notSeen. |
+| `sharesPeriod` | integer |  | Number of days counted in each advocate's Shares and used by shareAmountOperator (default: 30). Requires boardId. |
+| `shareAmountOperator` | string |  | Compare each advocate's Shares with shareAmountValue. Requires boardId. One of: `==`, `!=`, `>`, `>=`, `<`, `<=`. |
+| `shareAmountValue` | integer |  | Share count compared by shareAmountOperator (default: 0). Requires shareAmountOperator. |
+| `_order` | string |  | Sort as column,direction (default: name,1). Columns: name, email, lastboardlogin, lastseen, shares, role. Direction: 1 ascending, 0 descending. Example: shares,0 |
 | `_page` | integer |  | Page number (default: 0) |
-| `_count` | integer |  | Results per page (default: 25). One of: `25`, `50`, `100`. |
+| `_count` | integer |  | Results per page, 1 to 100 (default: 25) |
 
 **Returns:** Array of advocate objects (`id`, `name`, `email`, `status`).
 
 #### `get_advocate`
 
 Retrieve a single advocate by ID. Optionally pass boardId to include the advocate's subscribed
-topics and latest shares for that board. Get advocateId from list_advocates.
+topics, latest shares, and custom field values for that board. Get advocateId from
+list_advocates.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `advocateId` | string | * | The ID of the advocate to retrieve (starts with 00A) |
-| `boardId` | string |  | Board ID (starts with brd). If provided, includes Topics and LatestShares for that board |
+| `boardId` | string |  | Board ID (starts with brd). If provided, includes Topics, LatestShares, and CustomFields for that board |
 
 **Returns:** Full advocate object.
 
@@ -924,8 +995,10 @@ list_boards. New invite: firstName, lastName, and email. Re-invite: userId from 
 recently). For one person, pass those fields at the top level. For several, pass users (1-100
 entries; new invites and re-invites can be mixed). Do not send top-level person fields together
 with users. Optional message is a note on the invitation email, applied to every entry in the
-request. Bulk invites may partially succeed: valid entries are invited and invalid ones are
-listed in Errors.
+request. New invites accept optional customFields (field ID to option ID); an unknown field or
+an unknown option ID fails that entry. Fields marked IsRequired may be omitted: the advocate is
+created without them. Bulk invites may partially succeed: valid entries are invited and invalid
+ones are listed in Errors.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -934,7 +1007,13 @@ listed in Errors.
 | `lastName` | string |  | Single new invite only. Required with firstName and email. Do not send with users or userId. |
 | `email` | string |  | Single new invite only. Required with firstName and lastName. Do not send with users or userId. |
 | `userId` | string |  | Single re-invite only. Advocate/user ID (starts with 00A) from list_advocates. Do not send with users or with firstName/lastName/email. |
+| `customFields` | object |  | Single new invite only. Map of field ID to option ID from list_advocate_custom_fields. Option text values are not accepted. Fields are optional, including required ones: the advocate is created without them. For bulk, set customFields per users entry. |
 | `users` | object[] |  | Bulk invite (POST /v2/advocate/bulk). Array of 1-100 entries. Each entry is a new invite (firstName, lastName, email) or a re-invite (userId). Do not send top-level firstName, lastName, email, or userId when using users. |
+| `users[].firstName` | string |  | Required for a new invite (with lastName and email). Do not send with userId. |
+| `users[].lastName` | string |  | Required for a new invite (with firstName and email). Do not send with userId. |
+| `users[].email` | string |  | Required for a new invite (with firstName and lastName). Do not send with userId. |
+| `users[].userId` | string |  | Advocate/user ID (starts with 00A) from list_advocates. Re-sends the invitation. Do not combine with firstName, lastName, or email. |
+| `users[].customFields` | object |  | Optional, new invite only. Map of field ID to option ID from list_advocate_custom_fields. Option text values are not accepted. Fields are optional, including required ones: the advocate is created without them. |
 | `message` | string |  | Personal note attached to the invitation email. Applied to every invite in this request, including re-invites. Max 1024 characters. |
 
 **Returns:** Created advocate invitation.
@@ -950,6 +1029,31 @@ can belong to multiple boards. Get advocateId from list_advocates and boardId fr
 | `boardId` | string | * | The board ID to remove the advocate from (starts with brd) |
 
 **Returns:** Confirmation.
+
+#### `list_advocate_custom_fields`
+
+List advocate custom fields of a board with their options.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `boardId` | string | * | Board ID (starts with brd) from list_boards. |
+
+#### `update_advocate`
+
+Update advocate role and custom field values on a board, for one advocate (advocateId) or up to
+100 advocates (users).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `boardId` | string | * | Board ID (starts with brd). |
+| `advocateId` | string |  | Single update. Advocate ID (starts with 00A) from list_advocates. Do not send with users. |
+| `users` | object[] |  | Bulk update. Each entry is an object with userId, e.g. [{"userId": "00A1"}]; list_advocates Items can be passed as-is (Id is used as userId, other keys are ignored). Top-level role and customFields apply to every entry; an entry's own role or customFields override them. An empty array updates nothing. Do not send with advocateId. |
+| `users[].userId` | string |  | Advocate ID (starts with 00A). |
+| `users[].Id` | string |  | Alias of userId, as returned by list_advocates. |
+| `users[].role` | string |  | Board role ID or name (e.g. contributor). See Config.Roles in get_board or RoleId/Role in list_advocates. |
+| `users[].customFields` | object |  | Map of field ID to option ID from list_advocate_custom_fields. Empty string clears a value. |
+| `role` | string |  | Board role ID or name (e.g. contributor). See Config.Roles in get_board or RoleId/Role in list_advocates. With users, applies to every entry that does not set its own role. |
+| `customFields` | object |  | Map of field ID to option ID from list_advocate_custom_fields. Empty string clears a value. With users, applies to every entry; keys in an entry's own customFields override these. |
 
 ---
 
@@ -1036,15 +1140,16 @@ list_dashboards and reportId (widget ID) from get_dashboard.
 ### `list_conversations`
 
 List inbox items (direct messages, post comments, mentions, and replies) from connected social
-profiles. Supports filtering by type, status, network, assignee, tag, and free-text search. Use
-the returned Id with get_conversation, get_conversation_timeline, reply_to_conversation,
-assign_conversation, or update_conversation_status.
+profiles. Supports filtering by type, status, network, language, assignee, tag, and free-text
+search. Use the returned Id with get_conversation, get_conversation_timeline,
+reply_to_conversation, assign_conversation, or update_conversation_status.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `type` | string |  | Comma-separated item types. Accepted: Conversation (direct message), Post (comment on your post), Mention, Reply. Defaults to all. |
 | `status` | string |  | Comma-separated statuses. Accepted: open, closed |
-| `network` | string |  | Comma-separated networks. Accepted: Facebook, Twitter, LinkedIn, YouTube, Instagram, TikTok. One of: `Facebook`, `Twitter`, `LinkedIn`, `YouTube`, `Instagram`, `TikTok`. |
+| `network` | string |  | Comma-separated networks. Accepted: Facebook, Twitter, LinkedIn, Instagram, Youtube, TikTok, WeChat, Xing. |
+| `language` | string |  | Comma-separated language codes, e.g. en,fr,es. Use und for conversations with no detected language. Unknown codes are rejected. |
 | `assignee_id` | string |  | Comma-separated user IDs to filter by assignee. Get IDs from list_users. |
 | `tag` | string |  | Comma-separated conversation tag names to filter by. Get names from list_conversation_tags. |
 | `q` | string |  | Free-text search term. |
@@ -1247,14 +1352,16 @@ These tools, parameters, and behaviors are **not available**. Do not hallucinate
 
 ### Non-existent tools
 - **`bulk_publish`** or **`bulk_create`** — Messages must be created individually. Note that a single `create_post` call *can* fan one message out to many profiles via `credentialIds`, so that is not a bulk-tool workaround, it is the supported path.
-- **`search_posts`** — There is no dedicated search tool. Filter with the query parameters on `list_posts` (`q`, `status`, `before`, `after`, `createdBy`, `source`).
-- **`undo_publish`** — Published posts cannot be unpublished from the source network via API. `delete_post` removes the record from Oktopost but does not retract what's already live.
+- **`search_posts`** — There is no dedicated search tool. Filter with the query parameters on `list_posts` (see its table: `status`, `before`, `after`, `createdBy`, `source` and others).
+- **`undo_publish`** — Published posts cannot be unpublished from the source network via API, and `delete_post` only deletes posts that haven't gone out.
 - **`A/B_test`** — There is no A/B test parameter on posts. A/B testing must be done manually by creating separate posts.
 - **`send_feedback`** — Not exposed by the MCP server. Feedback goes through the Oktopost product directly.
 
 ### Cascading delete gotchas
-- `delete_media_folder` **does** cascade, and it is the only delete that does: it permanently removes every child folder and every media asset inside them.
-- `delete_campaign` does NOT cascade. Posts and messages under it become orphaned. If you care about attribution, re-assign posts with `change_post_campaign` first.
+- `delete_media_folder` cascades: it permanently removes every child folder and every media asset inside them.
+- `delete_campaign` removes the campaign and all its associated data. If you want to keep posts, move them with `change_post_campaign` first.
+- `update_campaign` with `status: archived` deletes the campaign's scheduled posts.
+- `delete_media` archives instead of deleting while a message still uses the asset, and the asset stays on that message.
 - `delete_message` does NOT delete posts created from that message.
 - `delete_board_topic` does NOT delete the stories tagged to it — they become untagged.
 
